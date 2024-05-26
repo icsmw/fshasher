@@ -3,7 +3,7 @@ use std::sync::{
     Arc,
 };
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Breaker {
     state: Arc<AtomicBool>,
 }

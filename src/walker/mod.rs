@@ -55,6 +55,10 @@ impl<H: Hasher, R: Reader> Walker<H, R> {
         Ok(())
     }
 
+    pub fn breaker(&self) -> Breaker {
+        self.breaker.clone()
+    }
+
     pub fn invalid(&self) -> &[PathBuf] {
         &self.invalid
     }
@@ -208,7 +212,52 @@ mod test {
                 bar.set_position(tick.done as u64);
             }
         });
-        hashing.join();
-        tracking.join();
+        hashing.join().unwrap();
+        tracking.join().unwrap();
+    }
+
+    #[test]
+    fn aborting() {
+        env_logger::init();
+        let mut entry = Entry::new();
+        entry.entry("/tmp").unwrap();
+        let mut walker = Options::new()
+            .entry(entry)
+            .unwrap()
+            .progress()
+            .walker(hasher::blake::Blake::new(), reader::direct::Direct::new())
+            .unwrap();
+        let progress = walker.progress().unwrap();
+        let breaker = walker.breaker();
+        let hashing = thread::spawn(move || {
+            walker.init().unwrap();
+            match walker.hash() {
+                Err(E::Aborted) => {
+                    println!("hashing has been aborted");
+                }
+                Err(e) => panic!("{e}"),
+                Ok(_) => panic!("hashing isn't aborted"),
+            }
+        });
+        let tracking = thread::spawn(move || {
+            let mp = MultiProgress::new();
+            let spinner_style =
+                ProgressStyle::with_template("{spinner} {prefix:.bold.dim} {wide_msg}")
+                    .unwrap()
+                    .tick_chars("▂▃▅▆▇▆▅▃▂ ");
+            let bar = mp.add(ProgressBar::new(u64::MAX));
+            bar.set_style(spinner_style.clone());
+            while let Ok(tick) = progress.recv() {
+                bar.set_message(tick.to_string());
+                bar.set_length(tick.total as u64);
+                bar.set_position(tick.done as u64);
+                if tick.total as f64 / tick.done as f64 <= 2.0 && !breaker.is_aborded() {
+                    println!("Aborting on: {tick}");
+                    breaker.abort();
+                }
+            }
+        });
+        hashing.join().unwrap();
+        tracking.join().unwrap();
     }
 }
