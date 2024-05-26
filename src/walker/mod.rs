@@ -11,7 +11,14 @@ pub use error::E;
 use log::debug;
 pub use options::{Options, Tolerance};
 pub use progress::{Progress, Tick};
-use std::{io::Read, mem, path::PathBuf, sync::mpsc::Receiver, time::Instant};
+use rayon::iter::ParallelDrainRange;
+use std::{
+    io::Read,
+    mem,
+    path::{Path, PathBuf},
+    sync::mpsc::Receiver,
+    time::Instant,
+};
 
 const BUFFER_SIZE: usize = 1024 * 8;
 
@@ -82,30 +89,13 @@ impl<H: Hasher, R: Reader> Walker<H, R> {
     pub fn hash(&mut self) -> Result<&[u8], E> {
         let now = Instant::now();
         let total = self.total();
-        while let Some(path) = self.next() {
+        for (i, path) in self.paths.iter().enumerate() {
             if self.breaker.is_aborded() {
                 return Err(E::Aborted);
             }
-            let mut reader = self.reader.setup(&path)?;
-            let mut hasher = self.hasher.setup()?;
-            let mut buffer = [0u8; BUFFER_SIZE];
-            loop {
-                if self.breaker.is_aborded() {
-                    return Err(E::Aborted);
-                }
-                let bytes_read = reader.read(&mut buffer)?;
-                if bytes_read == 0 {
-                    break;
-                }
-                hasher.absorb(&buffer[..bytes_read])?;
-            }
-            if self.breaker.is_aborded() {
-                return Err(E::Aborted);
-            }
-            hasher.finish()?;
-            self.hasher.absorb(hasher.hash()?)?;
+            self.hasher.absorb(self.hash_file(path.clone())?.hash()?)?;
             if let Some(tracker) = self.progress.as_mut() {
-                tracker.notify(self.cursor, total);
+                tracker.notify(i, total);
             }
         }
         self.hasher.finish()?;
@@ -142,6 +132,34 @@ impl<H: Hasher, R: Reader> Walker<H, R> {
         } else {
             Ok(None)
         }
+    }
+
+    fn hash_file<P: AsRef<Path>>(&self, path: P) -> Result<HasherWrapper<H>, E> {
+        if self.breaker.is_aborded() {
+            return Err(E::Aborted);
+        }
+        let mut reader = self.reader.setup(&path)?;
+        let mut hasher = self.hasher.setup()?;
+        let mut buffer = Vec::new();
+        // Try read full first
+        if reader.read_to_end(&mut buffer).is_ok() {
+            hasher.absorb(&buffer)?;
+        } else {
+            // If cannot read full file, read part by part
+            let mut buffer = [0u8; BUFFER_SIZE];
+            loop {
+                if self.breaker.is_aborded() {
+                    return Err(E::Aborted);
+                }
+                let bytes_read = reader.read(&mut buffer)?;
+                if bytes_read == 0 {
+                    break;
+                }
+                hasher.absorb(&buffer[..bytes_read])?;
+            }
+        }
+        hasher.finish()?;
+        Ok(hasher)
     }
 }
 
@@ -185,7 +203,7 @@ mod test {
     fn progress() {
         env_logger::init();
         let mut entry = Entry::new();
-        entry.entry("/tmp").unwrap();
+        entry.entry("/storage/projects/private/icsmw").unwrap();
         let mut walker = Options::new()
             .entry(entry)
             .unwrap()

@@ -23,7 +23,7 @@ impl Reader for Direct {
         Self: Sized,
     {
         Ok(Self {
-            file: Some(File::open(path.as_ref()).map_err(|err| (path.as_ref().to_owned(), err))?),
+            file: Some(File::open(path.as_ref())?),
         })
     }
 }
