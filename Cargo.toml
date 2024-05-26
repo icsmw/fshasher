@@ -13,3 +13,7 @@ log = "0.4.21"
 memmap2 = "0.9.4"
 rayon = "1.10.0"
 thiserror = "1.0.61"
+
+[dev-dependencies]
+indicatif = "0.17.7"
+
