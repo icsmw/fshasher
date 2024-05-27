@@ -40,4 +40,7 @@ impl Hasher for Blake {
         self.hasher.reset();
         Ok(())
     }
+    fn clone(&self) -> Self {
+        Self::new()
+    }
 }

@@ -2,7 +2,7 @@ pub(crate) mod blake;
 use crate::walker;
 use std::error;
 
-pub trait Hasher {
+pub trait Hasher: Send + Sync {
     type Error: error::Error;
 
     fn setup(&self) -> Result<Self, Self::Error>
@@ -12,6 +12,7 @@ pub trait Hasher {
     fn finish(&mut self) -> Result<(), Self::Error>;
     fn hash(&self) -> Result<&[u8], Self::Error>;
     fn reset(&mut self) -> Result<(), Self::Error>;
+    fn clone(&self) -> Self;
 }
 
 #[derive(Debug)]
@@ -42,5 +43,8 @@ impl<T: Hasher> HasherWrapper<T> {
     }
     pub fn reset(&mut self) -> Result<(), walker::E> {
         self.inner.reset().map_err(walker::E::hasher)
+    }
+    pub fn clone(&self) -> Self {
+        Self::new(self.inner.clone())
     }
 }

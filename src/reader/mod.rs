@@ -3,20 +3,21 @@ use std::{error, io::Read, path::Path};
 
 use crate::walker;
 
-pub trait Reader: Read {
+pub trait Reader: Read + Send + Sync {
     type Error: error::Error;
 
     fn setup<P: AsRef<Path>>(&self, path: P) -> Result<Self, Self::Error>
     where
         Self: Sized;
+    fn clone(&self) -> Self;
 }
 
 #[derive(Debug)]
-pub struct ReaderWrapper<T: Reader> {
+pub struct ReaderWrapper<T: Reader + Send + Sync> {
     inner: T,
 }
 
-impl<T: Reader> ReaderWrapper<T> {
+impl<T: Reader + Send + Sync> ReaderWrapper<T> {
     pub fn new(inner: T) -> Self {
         ReaderWrapper { inner }
     }
@@ -28,9 +29,12 @@ impl<T: Reader> ReaderWrapper<T> {
             inner: self.inner.setup(path).map_err(walker::E::reader)?,
         })
     }
+    pub fn clone(&self) -> Self {
+        Self::new(self.inner.clone())
+    }
 }
 
-impl<T: Reader> Read for ReaderWrapper<T> {
+impl<T: Reader + Send + Sync> Read for ReaderWrapper<T> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.inner.read(buf)
     }

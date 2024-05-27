@@ -4,17 +4,44 @@ use std::{
     sync::mpsc::{channel, Receiver, Sender},
 };
 
+#[derive(Debug)]
+pub enum JobType {
+    Collecting,
+    Hashing,
+}
+
+impl Default for JobType {
+    fn default() -> Self {
+        JobType::Collecting
+    }
+}
+
+impl fmt::Display for JobType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Collecting => "collecting",
+                Self::Hashing => "hashing",
+            },
+        )
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct Tick {
     pub done: usize,
     pub total: usize,
+    pub job: JobType,
 }
 
 impl fmt::Display for Tick {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "done {}% ({} / {})",
+            "{} done {}% ({} / {})",
+            self.job,
             ((self.done as f64 / self.total as f64) * 100f64) as usize,
             self.done,
             self.total
@@ -22,29 +49,22 @@ impl fmt::Display for Tick {
     }
 }
 
-#[derive(Debug)]
+pub type ProgressChannel = (Progress, Option<Receiver<Tick>>);
+
+#[derive(Debug, Clone)]
 pub struct Progress {
-    pub tx: Option<Sender<Tick>>,
-    pub rx: Option<Receiver<Tick>>,
+    pub tx: Sender<Tick>,
 }
 
 impl Progress {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn channel() -> ProgressChannel {
         let (tx, rx): (Sender<Tick>, Receiver<Tick>) = channel();
-        Progress {
-            tx: Some(tx),
-            rx: Some(rx),
-        }
+        (Progress { tx }, Some(rx))
     }
-    pub fn take(&mut self) -> Option<Receiver<Tick>> {
-        self.rx.take()
-    }
-    pub fn notify(&mut self, done: usize, total: usize) {
-        if let Some(tx) = self.tx.as_ref() {
-            if let Err(_err) = tx.send(Tick { done, total }) {
-                warn!("Fail to send progress data because channel problems. Progress tracking is stopped.");
-                self.tx = None;
-            }
+
+    pub fn notify(&self, job: JobType, done: usize, total: usize) {
+        if let Err(_err) = self.tx.send(Tick { done, total, job }) {
+            warn!("Fail to send progress data because channel problems. Progress tracking is stopped.");
         }
     }
 }

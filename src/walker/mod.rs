@@ -10,13 +10,18 @@ pub use entry::{Entry, Filter};
 pub use error::E;
 use log::debug;
 pub use options::{Options, Tolerance};
-pub use progress::{Progress, Tick};
-use rayon::iter::ParallelDrainRange;
+pub use progress::{JobType, Progress, ProgressChannel, Tick};
+use rayon::prelude::*;
 use std::{
+    collections::HashMap,
     io::Read,
     mem,
     path::{Path, PathBuf},
-    sync::mpsc::Receiver,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        mpsc::Receiver,
+        Arc, RwLock,
+    },
     time::Instant,
 };
 
@@ -31,7 +36,7 @@ pub struct Walker<H: Hasher, R: Reader> {
     cursor: usize,
     hasher: HasherWrapper<H>,
     reader: ReaderWrapper<R>,
-    progress: Option<Progress>,
+    progress: Option<ProgressChannel>,
 }
 
 impl<H: Hasher, R: Reader> Walker<H, R> {
@@ -83,19 +88,41 @@ impl<H: Hasher, R: Reader> Walker<H, R> {
     }
 
     pub fn progress(&mut self) -> Option<Receiver<Tick>> {
-        self.progress.as_mut().and_then(|progress| progress.take())
+        self.progress.as_mut().and_then(|(_, rx)| rx.take())
     }
 
     pub fn hash(&mut self) -> Result<&[u8], E> {
         let now = Instant::now();
         let total = self.total();
-        for (i, path) in self.paths.iter().enumerate() {
-            if self.breaker.is_aborded() {
-                return Err(E::Aborted);
-            }
-            self.hasher.absorb(self.hash_file(path.clone())?.hash()?)?;
-            if let Some(tracker) = self.progress.as_mut() {
-                tracker.notify(i, total);
+        let breaker = self.breaker();
+        let hashes: Arc<RwLock<HashMap<usize, Vec<u8>>>> = Arc::new(RwLock::new(HashMap::new()));
+        let hasher = self.hasher.clone();
+        let reader = self.reader.clone();
+        let done: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+        let progress = self.progress.as_ref().map(|(progress, _)| progress.clone());
+        self.paths
+            .par_iter()
+            .enumerate()
+            .try_for_each(|(i, path)| {
+                if breaker.is_aborded() {
+                    return Err(E::Aborted);
+                }
+                let hash = Walker::<H, R>::hash_file(path, &hasher, &reader, &breaker)?;
+                hashes
+                    .write()
+                    .map_err(|e| E::PoisonError(e.to_string()))?
+                    .insert(i, hash.hash()?.to_vec());
+                let current = done.load(Ordering::Relaxed);
+                done.store(current + 1, Ordering::Relaxed);
+                if let Some(progress) = progress.as_ref() {
+                    progress.notify(JobType::Hashing, current + 1, total);
+                }
+                Ok(())
+            })?;
+        let hashes = hashes.read().map_err(|e| E::PoisonError(e.to_string()))?;
+        for i in 0..self.paths.len() {
+            if let Some(data) = hashes.get(&i) {
+                self.hasher.absorb(data)?;
             }
         }
         self.hasher.finish()?;
@@ -134,12 +161,17 @@ impl<H: Hasher, R: Reader> Walker<H, R> {
         }
     }
 
-    fn hash_file<P: AsRef<Path>>(&self, path: P) -> Result<HasherWrapper<H>, E> {
-        if self.breaker.is_aborded() {
+    fn hash_file<P: AsRef<Path>>(
+        path: P,
+        hasher: &HasherWrapper<H>,
+        reader: &ReaderWrapper<R>,
+        breaker: &Breaker,
+    ) -> Result<HasherWrapper<H>, E> {
+        if breaker.is_aborded() {
             return Err(E::Aborted);
         }
-        let mut reader = self.reader.setup(&path)?;
-        let mut hasher = self.hasher.setup()?;
+        let mut reader = reader.setup(&path)?;
+        let mut hasher = hasher.setup()?;
         let mut buffer = Vec::new();
         // Try read full first
         if reader.read_to_end(&mut buffer).is_ok() {
@@ -148,7 +180,7 @@ impl<H: Hasher, R: Reader> Walker<H, R> {
             // If cannot read full file, read part by part
             let mut buffer = [0u8; BUFFER_SIZE];
             loop {
-                if self.breaker.is_aborded() {
+                if breaker.is_aborded() {
                     return Err(E::Aborted);
                 }
                 let bytes_read = reader.read(&mut buffer)?;
@@ -203,7 +235,7 @@ mod test {
     fn progress() {
         env_logger::init();
         let mut entry = Entry::new();
-        entry.entry("/storage/projects/private/icsmw").unwrap();
+        entry.entry("/tmp").unwrap();
         let mut walker = Options::new()
             .entry(entry)
             .unwrap()

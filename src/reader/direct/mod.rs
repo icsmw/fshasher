@@ -26,6 +26,9 @@ impl Reader for Direct {
             file: Some(File::open(path.as_ref())?),
         })
     }
+    fn clone(&self) -> Self {
+        Self::new()
+    }
 }
 
 impl Read for Direct {

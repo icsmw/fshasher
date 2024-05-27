@@ -1,6 +1,6 @@
 use crate::reader;
 use glob::PatternError;
-use std::{error, io, path::PathBuf};
+use std::{error, io, path::PathBuf, sync::PoisonError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -31,6 +31,8 @@ pub enum E {
     Hasher(String),
     #[error("Reading IO error: {0}")]
     ReadingIOError(io::Error),
+    #[error("Fail to get access to data between threads: {0}")]
+    PoisonError(String),
 }
 
 impl E {
