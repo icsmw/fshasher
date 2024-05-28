@@ -1,11 +1,11 @@
-use super::{Entry, Tolerance, E};
+use super::{Entry, Progress, Tolerance, E};
 use crate::breaker::Breaker;
 use log::{debug, error, warn};
 use std::{
     fs::{read_dir, read_link},
     mem,
     path::PathBuf,
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 pub struct Collector<'a> {
@@ -13,13 +13,20 @@ pub struct Collector<'a> {
     pub(crate) collected: Vec<PathBuf>,
     pub(crate) entries: Vec<Entry>,
     breaker: &'a Breaker,
+    progress: Option<&'a Progress>,
     tolerance: Tolerance,
 }
 
 impl<'a> Collector<'a> {
-    pub fn new(tolerance: Tolerance, breaker: &'a Breaker, entries: Vec<Entry>) -> Self {
+    pub fn new(
+        tolerance: Tolerance,
+        breaker: &'a Breaker,
+        progress: Option<&'a Progress>,
+        entries: Vec<Entry>,
+    ) -> Self {
         Self {
             breaker,
+            progress,
             tolerance,
             invalid: Vec::new(),
             collected: Vec::new(),
@@ -50,11 +57,11 @@ impl<'a> Collector<'a> {
     }
 
     fn collect_from_symlink(&mut self, link: &PathBuf, entry: &Entry) -> Result<(), E> {
-        let path = match read_link(&link) {
+        let path = match read_link(link) {
             Ok(path) => path,
             Err(err) => {
                 return self.report(
-                    &link,
+                    link,
                     format!(
                         "Fail to read symlink from {} due error: {err}",
                         link.to_string_lossy()
@@ -73,19 +80,26 @@ impl<'a> Collector<'a> {
         if path.is_file() {
             if entry.filtered(path) {
                 self.collected.push(path.to_owned());
+                if let Some(progress) = self.progress {
+                    progress.notify(
+                        super::JobType::Collecting,
+                        self.collected.len(),
+                        self.collected.len(),
+                    )
+                }
             }
             return Ok(());
         } else if path.is_symlink() {
             return self.collect_from_symlink(path, entry);
         }
-        if !path.is_dir() || !entry.filtered(&path) {
+        if !path.is_dir() || !entry.filtered(path) {
             return Ok(());
         }
-        let elements = match read_dir(&path) {
+        let elements = match read_dir(path) {
             Ok(elements) => elements,
             Err(err) => {
                 return self.report(
-                    &path,
+                    path,
                     format!(
                         "Fail to read directory {} due error: {err}",
                         path.to_string_lossy()
@@ -101,7 +115,7 @@ impl<'a> Collector<'a> {
                 }
                 Err(err) => {
                     self.report(
-                        &path,
+                        path,
                         format!(
                             "Fail to read entity from directory {} due error: {err}",
                             path.to_string_lossy()

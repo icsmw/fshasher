@@ -33,8 +33,8 @@ impl Options {
         }
     }
 
-    pub fn progress(&mut self) -> &mut Self {
-        self.progress = Some(Progress::channel());
+    pub fn progress(&mut self, capacity: usize) -> &mut Self {
+        self.progress = Some(Progress::channel(capacity));
         self
     }
 

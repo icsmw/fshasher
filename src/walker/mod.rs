@@ -56,9 +56,11 @@ impl<H: Hasher, R: Reader> Walker<H, R> {
 
     pub fn init(&mut self) -> Result<(), E> {
         let mut opt = self.opt.take().ok_or(E::AlreadyInited)?;
+        let progress = self.progress.as_ref().map(|(progress, _)| progress);
         let mut collector = Collector::new(
             opt.tolerance.clone(),
             &self.breaker,
+            progress,
             mem::take(&mut opt.entries),
         );
         collector.collect()?;
@@ -235,11 +237,11 @@ mod test {
     fn progress() {
         env_logger::init();
         let mut entry = Entry::new();
-        entry.entry("/tmp").unwrap();
+        entry.entry("/storage/projects/private").unwrap();
         let mut walker = Options::new()
             .entry(entry)
             .unwrap()
-            .progress()
+            .progress(10)
             .walker(hasher::blake::Blake::new(), reader::direct::Direct::new())
             .unwrap();
         let progress = walker.progress().unwrap();
@@ -274,7 +276,7 @@ mod test {
         let mut walker = Options::new()
             .entry(entry)
             .unwrap()
-            .progress()
+            .progress(10)
             .walker(hasher::blake::Blake::new(), reader::direct::Direct::new())
             .unwrap();
         let progress = walker.progress().unwrap();

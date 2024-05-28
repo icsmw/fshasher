@@ -1,19 +1,14 @@
 use log::warn;
 use std::{
     fmt,
-    sync::mpsc::{channel, Receiver, Sender},
+    sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender, TrySendError},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum JobType {
+    #[default]
     Collecting,
     Hashing,
-}
-
-impl Default for JobType {
-    fn default() -> Self {
-        JobType::Collecting
-    }
 }
 
 impl fmt::Display for JobType {
@@ -52,18 +47,42 @@ impl fmt::Display for Tick {
 pub type ProgressChannel = (Progress, Option<Receiver<Tick>>);
 
 #[derive(Debug, Clone)]
+pub enum Tx {
+    Unbound(Sender<Tick>),
+    Bound(SyncSender<Tick>),
+}
+
+impl Tx {
+    pub fn send(&self, tick: Tick) -> bool {
+        match self {
+            Self::Unbound(tx) => tx.send(tick).is_err(),
+            Self::Bound(tx) => match tx.try_send(tick) {
+                Ok(_) => false,
+                Err(TrySendError::Full(_)) => false,
+                Err(_err) => true,
+            },
+        }
+    }
+}
+#[derive(Debug, Clone)]
 pub struct Progress {
-    pub tx: Sender<Tick>,
+    pub tx: Tx,
 }
 
 impl Progress {
-    pub(crate) fn channel() -> ProgressChannel {
-        let (tx, rx): (Sender<Tick>, Receiver<Tick>) = channel();
+    pub(crate) fn channel(capacity: usize) -> ProgressChannel {
+        let (tx, rx): (Tx, Receiver<Tick>) = if capacity == 0 {
+            let (tx, rx) = channel();
+            (Tx::Unbound(tx), rx)
+        } else {
+            let (tx, rx) = sync_channel(capacity);
+            (Tx::Bound(tx), rx)
+        };
         (Progress { tx }, Some(rx))
     }
 
     pub fn notify(&self, job: JobType, done: usize, total: usize) {
-        if let Err(_err) = self.tx.send(Tick { done, total, job }) {
+        if self.tx.send(Tick { done, total, job }) {
             warn!("Fail to send progress data because channel problems. Progress tracking is stopped.");
         }
     }
