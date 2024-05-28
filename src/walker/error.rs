@@ -33,6 +33,8 @@ pub enum E {
     ReadingIOError(io::Error),
     #[error("Fail to get access to data between threads: {0}")]
     PoisonError(String),
+    #[error("Channel error: {0}")]
+    ChannelError(String),
 }
 
 impl E {

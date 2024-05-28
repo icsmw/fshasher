@@ -304,6 +304,7 @@ mod test {
                 if tick.total as f64 / tick.done as f64 <= 2.0 && !breaker.is_aborded() {
                     println!("Aborting on: {tick}");
                     breaker.abort();
+                    break;
                 }
             }
         });
