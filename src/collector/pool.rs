@@ -27,4 +27,9 @@ impl Pool {
     pub fn is_done(&self) -> bool {
         self.workers.iter().map(|w| w.count()).sum::<usize>() == 0
     }
+    pub fn shutdown(&mut self) {
+        for worker in self.workers.iter_mut() {
+            worker.shutdown();
+        }
+    }
 }

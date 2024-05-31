@@ -12,7 +12,7 @@ pub use pool::Pool;
 use std::{
     path::PathBuf,
     sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender},
-    thread::{self, JoinHandle},
+    thread,
 };
 pub use worker::Worker;
 
@@ -44,7 +44,7 @@ pub fn collect(
     thread::spawn(move || {
         let mut collected: Vec<PathBuf> = Vec::new();
         let mut invalid: Vec<PathBuf> = Vec::new();
-        let workers = Pool::new(threads, entry.clone(), tx_queue.clone(), &breaker);
+        let mut workers = Pool::new(threads, entry.clone(), tx_queue.clone(), &breaker);
         debug!("Created pool with {threads} workers");
         let mut pending: Option<Action> = None;
         let result = 'listener: loop {
@@ -93,6 +93,7 @@ pub fn collect(
                 break 'listener Ok((collected, invalid));
             }
         };
+        workers.shutdown();
         if tx_result.send(result).is_err() {
             error!("Fail to delivery result from collector. Channel is closed.");
         }

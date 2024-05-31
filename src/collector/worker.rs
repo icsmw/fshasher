@@ -129,12 +129,9 @@ impl Worker {
         let _ = self.tx_task.send(Task::Read(path));
     }
 
-    pub fn shutdown(&self) {
-        let _ = self.tx_task.send(Task::Shutdown);
-    }
-
-    pub fn wait(&mut self) {
+    pub fn shutdown(&mut self) {
         if let Some(handle) = self.handle.take() {
+            let _ = self.tx_task.send(Task::Shutdown);
             let _ = handle.join();
         }
     }
