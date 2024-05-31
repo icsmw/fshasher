@@ -59,10 +59,16 @@ impl<H: Hasher, R: Reader> Walker<H, R> {
         let mut opt = self.opt.take().ok_or(E::AlreadyInited)?;
         let progress = self.progress.as_ref().map(|(progress, _)| progress.clone());
         for entry in mem::take(&mut opt.entries) {
-            self.paths
-                .append(&mut collect(&progress, entry, &self.breaker));
+            let (mut collected, mut invalid) = collect(
+                &progress,
+                entry,
+                &self.breaker,
+                &opt.tolerance,
+                &opt.threads,
+            )?;
+            self.paths.append(&mut collected);
+            self.invalid.append(&mut invalid);
         }
-        // self.invalid = mem::take(&mut collector.invalid);
         debug!(
             "collected {} paths in {}µs / {}ms / {}s",
             self.paths.len(),

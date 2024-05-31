@@ -1,4 +1,4 @@
-use super::{Action, E};
+use super::Action;
 
 use crate::{breaker::Breaker, walker::Entry};
 use log::{debug, error};
@@ -33,44 +33,47 @@ impl Worker {
         let available_inner = available.clone();
         let queue_inner = queue.clone();
         let handle = thread::spawn(move || {
-            while let Ok(task) = rx_task.recv() {
+            let send = |action: Action| {
+                tx_queue.send(action).map_err(|err| {
+                    error!(
+                        "Worker cannot comunicate with pool. Channel error. Worker will be closed"
+                    );
+                    err
+                })
+            };
+            let response = |action: Action| {
+                *queue_inner.write().unwrap() -= 1;
+                send(action)
+            };
+            let check = |path: PathBuf, collected: &mut Vec<PathBuf>| {
+                if path.is_file() {
+                    collected.push(path);
+                    Ok(())
+                } else if path.is_dir() {
+                    send(Action::Read(path))
+                } else {
+                    Ok(())
+                }
+            };
+            'outer: while let Ok(task) = rx_task.recv() {
                 let path = match task {
                     Task::Read(path) => path,
-                    Task::Shutdown => break,
-                };
-                let send = |action: Action| {
-                    if tx_queue.send(action).is_err() {
-                        error!("Worker cannot comunicate with pool. Channel error. Worker will be closed");
-                        true
-                    } else {
-                        false
-                    }
-                };
-                let finish = |action: Action| {
-                    *queue_inner.write().unwrap() -= 1;
-                    send(action)
-                };
-                let check = |path: PathBuf, collected: &mut Vec<PathBuf>| {
-                    if path.is_file() {
-                        collected.push(path);
-                        false
-                    } else if path.is_dir() {
-                        send(Action::Read(path))
-                    } else {
-                        false
-                    }
+                    Task::Shutdown => break 'outer,
                 };
                 let els = match read_dir(&path) {
                     Ok(els) => els,
                     Err(err) => {
-                        finish(Action::Error(E::IOBound(path, err)));
-                        continue;
+                        if response(Action::Error(path, err.into())).is_err() {
+                            break 'outer;
+                        } else {
+                            continue;
+                        }
                     }
                 };
                 let mut collected: Vec<PathBuf> = Vec::new();
                 for el in els.into_iter() {
                     if breaker.is_aborded() {
-                        break;
+                        break 'outer;
                     }
                     let Ok(path) = el.map(|el| el.path()) else {
                         continue;
@@ -79,24 +82,27 @@ impl Worker {
                         continue;
                     }
                     if path.is_file() || path.is_dir() {
-                        if check(path, &mut collected) {
-                            break;
+                        if check(path, &mut collected).is_err() {
+                            break 'outer;
                         }
                     } else if path.is_symlink() {
                         let path = match read_link(&path) {
                             Ok(path) => path,
                             Err(err) => {
-                                finish(Action::Error(E::IOBound(path, err)));
-                                continue;
+                                if response(Action::Error(path, err.into())).is_err() {
+                                    break 'outer;
+                                } else {
+                                    continue;
+                                }
                             }
                         };
-                        if check(path, &mut collected) {
-                            break;
+                        if check(path, &mut collected).is_err() {
+                            break 'outer;
                         }
                     }
                 }
-                if finish(Action::Finished(collected)) || breaker.is_aborded() {
-                    break;
+                if response(Action::Finished(collected)).is_err() || breaker.is_aborded() {
+                    break 'outer;
                 }
             }
             available_inner.store(false, Ordering::Relaxed);

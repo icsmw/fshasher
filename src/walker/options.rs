@@ -21,6 +21,7 @@ pub struct Options {
     pub(crate) entries: Vec<Entry>,
     pub(crate) global: Entry,
     pub(crate) progress: Option<ProgressChannel>,
+    pub(crate) threads: Option<usize>,
 }
 
 impl Options {
@@ -30,7 +31,13 @@ impl Options {
             entries: Vec::new(),
             global: Entry::default(),
             progress: None,
+            threads: None,
         }
+    }
+
+    pub fn threads(&mut self, threads: usize) -> &mut Self {
+        self.threads = Some(threads);
+        self
     }
 
     pub fn progress(&mut self, capacity: usize) -> &mut Self {
@@ -72,6 +79,7 @@ impl Options {
                 global: mem::take(&mut self.global),
                 entries: mem::take(&mut self.entries),
                 progress: self.progress.take(),
+                threads: self.threads.take(),
             },
             hasher,
             reader,

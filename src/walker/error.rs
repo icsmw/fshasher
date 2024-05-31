@@ -1,4 +1,4 @@
-use crate::reader;
+use crate::collector;
 use glob::PatternError;
 use std::{error, io, path::PathBuf, sync::PoisonError};
 use thiserror::Error;
@@ -35,6 +35,8 @@ pub enum E {
     PoisonError(String),
     #[error("Channel error: {0}")]
     ChannelError(String),
+    #[error("Collector error: {0}")]
+    CollectorError(collector::E),
 }
 
 impl E {
@@ -49,6 +51,12 @@ impl E {
 impl From<(String, PatternError)> for E {
     fn from(err: (String, PatternError)) -> Self {
         E::PatternError(err.0, err.1)
+    }
+}
+
+impl From<collector::E> for E {
+    fn from(err: collector::E) -> Self {
+        E::CollectorError(err)
     }
 }
 
