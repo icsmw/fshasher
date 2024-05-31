@@ -1,11 +1,11 @@
-mod collector;
 mod entry;
 mod error;
 mod options;
 mod progress;
 
-use crate::{hasher::HasherWrapper, reader::ReaderWrapper, Breaker, Hasher, Reader};
-use collector::Collector;
+use crate::{
+    collector::collect, hasher::HasherWrapper, reader::ReaderWrapper, Breaker, Hasher, Reader,
+};
 pub use entry::{Entry, Filter};
 pub use error::E;
 use log::debug;
@@ -55,17 +55,21 @@ impl<H: Hasher, R: Reader> Walker<H, R> {
     }
 
     pub fn init(&mut self) -> Result<(), E> {
+        let now = Instant::now();
         let mut opt = self.opt.take().ok_or(E::AlreadyInited)?;
-        let progress = self.progress.as_ref().map(|(progress, _)| progress);
-        let mut collector = Collector::new(
-            opt.tolerance.clone(),
-            &self.breaker,
-            progress,
-            mem::take(&mut opt.entries),
+        let progress = self.progress.as_ref().map(|(progress, _)| progress.clone());
+        for entry in mem::take(&mut opt.entries) {
+            self.paths
+                .append(&mut collect(&progress, entry, &self.breaker));
+        }
+        // self.invalid = mem::take(&mut collector.invalid);
+        debug!(
+            "collected {} paths in {}µs / {}ms / {}s",
+            self.paths.len(),
+            now.elapsed().as_micros(),
+            now.elapsed().as_millis(),
+            now.elapsed().as_secs()
         );
-        collector.collect()?;
-        self.paths = mem::take(&mut collector.collected);
-        self.invalid = mem::take(&mut collector.invalid);
         Ok(())
     }
 
@@ -247,8 +251,8 @@ mod test {
         let progress = walker.progress().unwrap();
         let hashing = thread::spawn(move || {
             walker.init().unwrap();
-            let hash = walker.hash().unwrap();
-            println!("{hash:?}");
+            // let hash = walker.hash().unwrap();
+            // println!("{hash:?}");
         });
         let tracking = thread::spawn(move || {
             let mp = MultiProgress::new();

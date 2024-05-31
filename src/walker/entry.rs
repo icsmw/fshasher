@@ -33,7 +33,7 @@ impl<T: AsRef<str>> TryInto<FilterAccepted> for Filter<T> {
     }
 }
 
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub(crate) enum FilterAccepted {
     Folders(Pattern),
     Files(Pattern),
@@ -63,7 +63,7 @@ impl FilterAccepted {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Entry {
     pub entry: PathBuf,
     pub include: Vec<FilterAccepted>,

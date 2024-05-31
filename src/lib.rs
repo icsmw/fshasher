@@ -1,4 +1,5 @@
 pub mod breaker;
+pub mod collector;
 pub mod error;
 pub mod hasher;
 pub mod reader;
