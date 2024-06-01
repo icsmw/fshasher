@@ -184,8 +184,14 @@ impl<H: Hasher, R: Reader> Walker<H, R> {
         }
         let mut reader = reader.setup(&path)?;
         let mut hasher = hasher.setup()?;
+        // Try mmap
+        if let Some(mmap) = reader.mmap() {
+            hasher.absorb(&mmap)?;
+            hasher.finish()?;
+            return Ok(hasher);
+        }
         let mut buffer = Vec::new();
-        // Try read full first
+        // Try read full
         if reader.read_to_end(&mut buffer).is_ok() {
             hasher.absorb(&buffer)?;
         } else {
@@ -252,13 +258,13 @@ mod test {
             .entry(entry)
             .unwrap()
             .progress(10)
-            .walker(hasher::blake::Blake::new(), reader::direct::Direct::new())
+            .walker(hasher::blake::Blake::new(), reader::moving::Moving::new())
             .unwrap();
         let progress = walker.progress().unwrap();
         let hashing = thread::spawn(move || {
             walker.init().unwrap();
-            // let hash = walker.hash().unwrap();
-            // println!("{hash:?}");
+            let hash = walker.hash().unwrap();
+            println!("{hash:?}");
         });
         let tracking = thread::spawn(move || {
             let mp = MultiProgress::new();

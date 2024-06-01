@@ -1,4 +1,7 @@
-pub(crate) mod direct;
+pub mod direct;
+pub mod moving;
+
+use memmap2::Mmap;
 use std::{error, io::Read, path::Path};
 
 use crate::walker;
@@ -10,6 +13,9 @@ pub trait Reader: Read + Send + Sync {
     where
         Self: Sized;
     fn clone(&self) -> Self;
+    fn mmap(&self) -> Option<Mmap> {
+        None
+    }
 }
 
 #[derive(Debug)]
@@ -28,6 +34,9 @@ impl<T: Reader + Send + Sync> ReaderWrapper<T> {
         Ok(ReaderWrapper {
             inner: self.inner.setup(path).map_err(walker::E::reader)?,
         })
+    }
+    pub fn mmap(&self) -> Option<Mmap> {
+        self.inner.mmap()
     }
     pub fn clone(&self) -> Self {
         Self::new(self.inner.clone())
