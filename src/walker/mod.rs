@@ -11,7 +11,7 @@ use crate::{
 pub use entry::{Entry, Filter};
 pub use error::E;
 use log::debug;
-pub use options::{Options, Tolerance};
+pub use options::{Options, ReadingStrategy, Tolerance};
 use pool::Pool;
 pub use progress::{JobType, Progress, ProgressChannel, Tick};
 use std::{
@@ -117,7 +117,12 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
             .threads
             .or_else(|| thread::available_parallelism().ok().map(|n| n.get()))
             .ok_or(E::OptimalThreadsNumber)?;
-        let mut workers: Pool<H, R> = Pool::new(threads, tx_queue.clone(), &self.breaker);
+        let mut workers: Pool<H, R> = Pool::new(
+            threads,
+            tx_queue.clone(),
+            &opt.reading_strategy,
+            &self.breaker,
+        );
         debug!("Created pool with {threads} workers for hashing");
         let mut paths = mem::take(&mut self.paths);
         let hasher = self.hasher.clone();

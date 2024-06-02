@@ -1,4 +1,4 @@
-use super::{Action, HasherWrapper, ReaderWrapper, E};
+use super::{Action, HasherWrapper, ReaderWrapper, ReadingStrategy, E};
 
 use crate::{breaker::Breaker, Hasher, Reader};
 use log::{debug, error};
@@ -32,7 +32,11 @@ pub struct Worker<H: Hasher, R: Reader> {
 }
 
 impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
-    pub fn run(tx_queue: Sender<Action<H>>, breaker: Breaker) -> Self {
+    pub fn run(
+        tx_queue: Sender<Action<H>>,
+        reading_strategy: ReadingStrategy,
+        breaker: Breaker,
+    ) -> Self {
         let (tx_task, rx_task): TaskChannel<H, R> = channel();
         let queue = Arc::new(RwLock::new(0));
         let available: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
@@ -58,7 +62,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
                     if breaker.is_aborded() {
                         break 'outer;
                     }
-                    match hash_file(hasher, reader, &breaker) {
+                    match hash_file(hasher, reader, &reading_strategy, &breaker) {
                         Ok(hasher) => collected.push((path, hasher)),
                         Err(err) => {
                             if response(Action::Error(path, err)).is_err() {
@@ -114,48 +118,36 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
 fn hash_file<H: Hasher, R: Reader>(
     mut hasher: HasherWrapper<H>,
     mut reader: ReaderWrapper<R>,
+    reading_strategy: &ReadingStrategy,
     breaker: &Breaker,
 ) -> Result<HasherWrapper<H>, E> {
     if breaker.is_aborded() {
         return Err(E::Aborted);
     }
-    // Try mmap
-    if let Some(mmap) = reader.mmap() {
-        hasher.absorb(&mmap)?;
-        hasher.finish()?;
-        return Ok(hasher);
-    }
-    // ex
-    let mut buffer = [0u8; BUFFER_SIZE];
-    loop {
-        if breaker.is_aborded() {
-            return Err(E::Aborted);
+    match reading_strategy {
+        ReadingStrategy::Buffer => {
+            let mut buffer = [0u8; BUFFER_SIZE];
+            loop {
+                if breaker.is_aborded() {
+                    return Err(E::Aborted);
+                }
+                let bytes_read = reader.read(&mut buffer)?;
+                if bytes_read == 0 {
+                    break;
+                }
+                hasher.absorb(&buffer[..bytes_read])?;
+            }
         }
-        let bytes_read = reader.read(&mut buffer)?;
-        if bytes_read == 0 {
-            break;
+        ReadingStrategy::Complete => {
+            let mut buffer = Vec::new();
+            reader.read_to_end(&mut buffer)?;
+            hasher.absorb(&buffer)?
         }
-        hasher.absorb(&buffer[..bytes_read])?;
-    }
-    // ex
-    // let mut buffer = Vec::new();
-    // // Try read full
-    // if reader.read_to_end(&mut buffer).is_ok() {
-    //     hasher.absorb(&buffer)?;
-    // } else {
-    //     // If cannot read full file, read part by part
-    //     let mut buffer = [0u8; BUFFER_SIZE];
-    //     loop {
-    //         if breaker.is_aborded() {
-    //             return Err(E::Aborted);
-    //         }
-    //         let bytes_read = reader.read(&mut buffer)?;
-    //         if bytes_read == 0 {
-    //             break;
-    //         }
-    //         hasher.absorb(&buffer[..bytes_read])?;
-    //     }
-    // }
+        ReadingStrategy::MemoryMapped => {
+            let mmap = reader.mmap()?;
+            hasher.absorb(&mmap)?;
+        }
+    };
     hasher.finish()?;
     Ok(hasher)
 }

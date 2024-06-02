@@ -15,6 +15,14 @@ impl Default for Tolerance {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub enum ReadingStrategy {
+    #[default]
+    Buffer,
+    Complete,
+    MemoryMapped,
+}
+
 #[derive(Default, Debug)]
 pub struct Options {
     pub(crate) tolerance: Tolerance,
@@ -22,6 +30,7 @@ pub struct Options {
     pub(crate) global: Entry,
     pub(crate) progress: Option<ProgressChannel>,
     pub(crate) threads: Option<usize>,
+    pub(crate) reading_strategy: ReadingStrategy,
 }
 
 impl Options {
@@ -32,7 +41,13 @@ impl Options {
             global: Entry::default(),
             progress: None,
             threads: None,
+            reading_strategy: ReadingStrategy::default(),
         }
+    }
+
+    pub fn reading_strategy(&mut self, reading_strategy: ReadingStrategy) -> &mut Self {
+        self.reading_strategy = reading_strategy;
+        self
     }
 
     pub fn threads(&mut self, threads: usize) -> &mut Self {
@@ -80,6 +95,7 @@ impl Options {
                 entries: mem::take(&mut self.entries),
                 progress: self.progress.take(),
                 threads: self.threads.take(),
+                reading_strategy: self.reading_strategy.clone(),
             },
             hasher,
             reader,

@@ -29,17 +29,13 @@ impl Reader for Moving {
     fn clone(&self) -> Self {
         Self::default()
     }
-    fn mmap(&self) -> Option<Mmap> {
-        if self.md.as_ref()?.len() as usize > usize::MAX {
-            None
-        } else if let Ok(mmap) = unsafe {
-            MmapOptions::new()
-                .len(self.md.as_ref()?.len() as usize)
-                .map(self.file.as_ref()?)
-        } {
-            Some(mmap)
+    fn mmap(&self) -> Result<Mmap, E> {
+        let md = self.md.as_ref().ok_or(E::SetupIsMissed)?;
+        let file = self.file.as_ref().ok_or(E::SetupIsMissed)?;
+        if md.len() as usize > usize::MAX {
+            Err(E::FileIsTooBig)
         } else {
-            None
+            Ok(unsafe { MmapOptions::new().len(md.len() as usize).map(file) }?)
         }
     }
 }

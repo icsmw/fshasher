@@ -1,11 +1,11 @@
-pub mod breaker;
-pub mod collector;
-pub mod error;
-pub mod hasher;
-pub mod reader;
-pub mod walker;
+mod breaker;
+mod collector;
+mod error;
+mod hasher;
+mod reader;
+mod walker;
 
 pub use breaker::Breaker;
 pub use hasher::Hasher;
 pub use reader::Reader;
-pub use walker::{Options, Walker};
+pub use walker::{Options, ReadingStrategy, Tolerance, Walker};

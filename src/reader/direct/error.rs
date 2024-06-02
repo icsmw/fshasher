@@ -5,8 +5,8 @@ use thiserror::Error;
 pub enum E {
     #[error("Fail to read: {0}")]
     IOError(io::Error),
-    #[error("Setup step is missed")]
-    SetupIsMissed,
+    #[error("Direct reader doesn't support mapping file into memory")]
+    MemoryMappingNotSupported,
 }
 
 impl From<io::Error> for E {

@@ -13,9 +13,7 @@ pub trait Reader: Read + Send + Sync {
     where
         Self: Sized;
     fn clone(&self) -> Self;
-    fn mmap(&self) -> Option<Mmap> {
-        None
-    }
+    fn mmap(&self) -> Result<Mmap, Self::Error>;
 }
 
 #[derive(Debug)]
@@ -35,8 +33,8 @@ impl<T: Reader + Send + Sync> ReaderWrapper<T> {
             inner: self.inner.setup(path).map_err(walker::E::reader)?,
         })
     }
-    pub fn mmap(&self) -> Option<Mmap> {
-        self.inner.mmap()
+    pub fn mmap(&self) -> Result<Mmap, walker::E> {
+        self.inner.mmap().map_err(walker::E::reader)
     }
 }
 

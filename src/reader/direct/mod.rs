@@ -22,6 +22,9 @@ impl Reader for Direct {
     fn clone(&self) -> Self {
         Self::default()
     }
+    fn mmap(&self) -> Result<memmap2::Mmap, E> {
+        Err(E::MemoryMappingNotSupported)
+    }
 }
 
 impl Read for Direct {
