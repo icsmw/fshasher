@@ -37,6 +37,14 @@ pub enum E {
     ChannelError(String),
     #[error("Collector error: {0}")]
     CollectorError(collector::E),
+    #[error("Fail to get optimal threads number")]
+    OptimalThreadsNumber,
+    #[error("No available workers")]
+    NoAvailableWorkers,
+    #[error("Error hashing file {0}: {1}")]
+    Bound(PathBuf, Box<Self>),
+    #[error("Fail get feedback from main hashing thread: {0}")]
+    JoinError(String),
 }
 
 impl E {

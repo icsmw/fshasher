@@ -11,8 +11,8 @@ use log::{debug, error, warn};
 pub use pool::Pool;
 use std::{
     path::PathBuf,
-    sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender},
-    thread,
+    sync::mpsc::{channel, Receiver, Sender},
+    thread::{self, JoinHandle},
 };
 pub use worker::Worker;
 
@@ -31,8 +31,6 @@ pub fn collect(
     tolerance: &Tolerance,
     threads: &Option<usize>,
 ) -> CollectingResult {
-    let (tx_result, rx_result): (SyncSender<CollectingResult>, Receiver<CollectingResult>) =
-        sync_channel(1);
     let (tx_queue, rx_queue): (Sender<Action>, Receiver<Action>) = channel();
     tx_queue.send(Action::Read(entry.entry.clone())).unwrap();
     let progress = progress.clone();
@@ -41,11 +39,11 @@ pub fn collect(
     let threads = threads
         .or_else(|| thread::available_parallelism().ok().map(|n| n.get()))
         .ok_or(E::OptimalThreadsNumber)?;
-    thread::spawn(move || {
+    let handle: JoinHandle<CollectingResult> = thread::spawn(move || {
         let mut collected: Vec<PathBuf> = Vec::new();
         let mut invalid: Vec<PathBuf> = Vec::new();
         let mut workers = Pool::new(threads, entry.clone(), tx_queue.clone(), &breaker);
-        debug!("Created pool with {threads} workers");
+        debug!("Created pool with {threads} workers for paths collecting");
         let mut pending: Option<Action> = None;
         let result = 'listener: loop {
             let next = if let Some(next) = pending.take() {
@@ -94,11 +92,7 @@ pub fn collect(
             }
         };
         workers.shutdown();
-        if tx_result.send(result).is_err() {
-            error!("Fail to delivery result from collector. Channel is closed.");
-        }
-        // Shutdown workers and wait
-        Ok::<(), ()>(())
+        result
     });
-    rx_result.recv().map_err(|_| E::ChannelIssue)?
+    handle.join().map_err(|e| E::JoinError(format!("{e:?}")))?
 }

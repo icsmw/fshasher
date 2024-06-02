@@ -68,7 +68,7 @@ impl Options {
         Ok(self)
     }
 
-    pub fn walker<H: Hasher, R: Reader>(
+    pub fn walker<H: Hasher + 'static, R: Reader + 'static>(
         &mut self,
         hasher: H,
         reader: R,

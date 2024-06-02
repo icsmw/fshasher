@@ -106,7 +106,7 @@ impl Worker {
                 }
             }
             available_inner.store(false, Ordering::Relaxed);
-            debug!("Worker has been shutdown");
+            debug!("Paths collector worker has been shutdown");
         });
         Self {
             tx_task,

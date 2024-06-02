@@ -1,7 +1,9 @@
 mod entry;
 mod error;
 mod options;
+mod pool;
 mod progress;
+mod worker;
 
 use crate::{
     collector::collect, hasher::HasherWrapper, reader::ReaderWrapper, Breaker, Hasher, Reader,
@@ -10,22 +12,27 @@ pub use entry::{Entry, Filter};
 pub use error::E;
 use log::debug;
 pub use options::{Options, Tolerance};
+use pool::Pool;
 pub use progress::{JobType, Progress, ProgressChannel, Tick};
-use rayon::prelude::*;
 use std::{
-    collections::HashMap,
-    io::Read,
     mem,
-    path::{Path, PathBuf},
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        mpsc::Receiver,
-        Arc, RwLock,
-    },
+    path::PathBuf,
+    sync::mpsc::{channel, Receiver, Sender},
+    thread::{self, JoinHandle},
     time::Instant,
 };
+pub use worker::{Job, Worker};
 
-const BUFFER_SIZE: usize = 1024 * 8;
+const MIN_PATHS_PER_JOB: usize = 2;
+const MAX_PATHS_PER_JOB: usize = 500;
+
+pub enum Action<H: Hasher> {
+    Finished(Vec<(PathBuf, HasherWrapper<H>)>),
+    Shutdown,
+    Error(PathBuf, E),
+}
+
+type HashingResult<T> = Result<(HasherWrapper<T>, Vec<(PathBuf, HasherWrapper<T>)>), E>;
 
 #[derive(Debug)]
 pub struct Walker<H: Hasher, R: Reader> {
@@ -33,13 +40,15 @@ pub struct Walker<H: Hasher, R: Reader> {
     breaker: Breaker,
     paths: Vec<PathBuf>,
     invalid: Vec<PathBuf>,
-    cursor: usize,
+    hashes: Vec<(PathBuf, HasherWrapper<H>)>,
+    hash: Option<HasherWrapper<H>>,
     hasher: HasherWrapper<H>,
     reader: ReaderWrapper<R>,
     progress: Option<ProgressChannel>,
+    pos: usize,
 }
 
-impl<H: Hasher, R: Reader> Walker<H, R> {
+impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
     pub fn new(mut opt: Options, hasher: H, reader: R) -> Result<Self, E> {
         let progress = opt.progress.take();
         Ok(Self {
@@ -47,16 +56,18 @@ impl<H: Hasher, R: Reader> Walker<H, R> {
             breaker: Breaker::new(),
             paths: Vec::new(),
             invalid: Vec::new(),
-            cursor: 0,
+            hashes: Vec::new(),
+            hash: None,
             hasher: HasherWrapper::new(hasher),
             reader: ReaderWrapper::new(reader),
             progress,
+            pos: 0,
         })
     }
 
     pub fn init(&mut self) -> Result<(), E> {
         let now = Instant::now();
-        let mut opt = self.opt.take().ok_or(E::AlreadyInited)?;
+        let opt = self.opt.as_mut().ok_or(E::AlreadyInited)?;
         let progress = self.progress.as_ref().map(|(progress, _)| progress.clone());
         for entry in mem::take(&mut opt.entries) {
             let (mut collected, mut invalid) = collect(
@@ -91,53 +102,111 @@ impl<H: Hasher, R: Reader> Walker<H, R> {
         self.paths.len()
     }
 
-    pub fn pos(&self) -> usize {
-        self.cursor
-    }
-
-    pub fn reset(&mut self) {
-        self.cursor = 0;
-    }
-
     pub fn progress(&mut self) -> Option<Receiver<Tick>> {
         self.progress.as_mut().and_then(|(_, rx)| rx.take())
     }
 
     pub fn hash(&mut self) -> Result<&[u8], E> {
         let now = Instant::now();
-        let total = self.total();
-        let breaker = self.breaker();
-        let hashes: Arc<RwLock<HashMap<usize, Vec<u8>>>> = Arc::new(RwLock::new(HashMap::new()));
+        if self.paths.is_empty() {
+            return Ok(&[]);
+        }
+        let opt = self.opt.as_mut().ok_or(E::AlreadyInited)?;
+        let (tx_queue, rx_queue): (Sender<Action<H>>, Receiver<Action<H>>) = channel();
+        let progress = self.progress.as_ref().map(|(progress, _)| progress.clone());
+        let breaker = self.breaker.clone();
+        let threads = opt
+            .threads
+            .or_else(|| thread::available_parallelism().ok().map(|n| n.get()))
+            .ok_or(E::OptimalThreadsNumber)?;
+        let mut workers: Pool<H, R> = Pool::new(threads, tx_queue.clone(), &self.breaker);
+        debug!("Created pool with {threads} workers for hashing");
+        let mut paths = mem::take(&mut self.paths);
         let hasher = self.hasher.clone();
         let reader = self.reader.clone();
-        let done: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-        let progress = self.progress.as_ref().map(|(progress, _)| progress.clone());
-        self.paths
-            .par_iter()
-            .enumerate()
-            .try_for_each(|(i, path)| {
-                if breaker.is_aborded() {
-                    return Err(E::Aborted);
-                }
-                let hash = Walker::<H, R>::hash_file(path, &hasher, &reader, &breaker)?;
-                hashes
-                    .write()
-                    .map_err(|e| E::PoisonError(e.to_string()))?
-                    .insert(i, hash.hash()?.to_vec());
-                let current = done.load(Ordering::Relaxed);
-                done.store(current + 1, Ordering::Relaxed);
-                if let Some(progress) = progress.as_ref() {
-                    progress.notify(JobType::Hashing, current + 1, total);
-                }
-                Ok(())
-            })?;
-        let hashes = hashes.read().map_err(|e| E::PoisonError(e.to_string()))?;
-        for i in 0..self.paths.len() {
-            if let Some(data) = hashes.get(&i) {
-                self.hasher.absorb(data)?;
-            }
+        let total = paths.len();
+        let mut paths_per_jobs = (total as f64 * 0.05).ceil() as usize;
+        if paths_per_jobs < MIN_PATHS_PER_JOB {
+            paths_per_jobs = MIN_PATHS_PER_JOB;
+        } else if paths_per_jobs > MAX_PATHS_PER_JOB {
+            paths_per_jobs = MAX_PATHS_PER_JOB;
         }
-        self.hasher.finish()?;
+        let handle: JoinHandle<HashingResult<H>> = thread::spawn(move || {
+            let mut summary = hasher.setup()?;
+            let mut next = || -> Result<Vec<Job<H, R>>, E> {
+                if paths.is_empty() {
+                    return Ok(Vec::new());
+                }
+                let len = paths.len();
+                let end = if len < paths_per_jobs {
+                    0
+                } else {
+                    len - paths_per_jobs
+                };
+                let mut jobs = Vec::new();
+                for p in paths.drain(end..).collect::<Vec<PathBuf>>().into_iter() {
+                    let r = reader.setup(&p)?;
+                    let h = hasher.setup()?;
+                    jobs.push((p, h, r));
+                }
+                Ok(jobs)
+            };
+            for worker in workers.iter() {
+                let jobs: Vec<(PathBuf, HasherWrapper<H>, ReaderWrapper<R>)> = next()?;
+                if jobs.is_empty() {
+                    break;
+                }
+                worker.deligate(jobs);
+            }
+            let mut hashes = Vec::new();
+            while let Ok(action) = rx_queue.recv() {
+                if breaker.is_aborded() {
+                    break;
+                }
+                match action {
+                    Action::Finished(mut processed) => {
+                        hashes.append(&mut processed);
+                        if let Some(ref progress) = progress {
+                            progress.notify(JobType::Hashing, hashes.len(), total)
+                        }
+                    }
+                    Action::Shutdown => {
+                        if workers.is_all_down() {
+                            break;
+                        }
+                    }
+                    Action::Error(path, err) => {
+                        workers.shutdown().wait();
+                        return Err(E::Bound(path, Box::new(err)));
+                    }
+                }
+                for worker in workers.iter().filter(|w| w.is_free()) {
+                    let jobs: Vec<(PathBuf, HasherWrapper<H>, ReaderWrapper<R>)> = next()?;
+                    if jobs.is_empty() {
+                        workers.shutdown();
+                        break;
+                    }
+                    worker.deligate(jobs);
+                }
+            }
+            workers.shutdown().wait();
+            hashes.sort_by(|(a, _), (b, _)| a.cmp(b));
+            for (_, hash) in hashes.iter() {
+                summary.absorb(hash.hash()?)?;
+            }
+            summary.finish()?;
+            Ok((summary, hashes))
+        });
+        let (summary, mut hashes) = handle
+            .join()
+            .map_err(|e| E::JoinError(format!("{e:?}")))??;
+        self.hashes = mem::take(&mut hashes);
+        self.hash = Some(summary);
+        let hash = if let Some(ref hash) = self.hash {
+            hash.hash()?
+        } else {
+            unreachable!("Hash has been stored");
+        };
         debug!(
             "hashing of {} paths in {}µs / {}ms / {}s",
             total,
@@ -145,84 +214,42 @@ impl<H: Hasher, R: Reader> Walker<H, R> {
             now.elapsed().as_millis(),
             now.elapsed().as_secs()
         );
-        self.hasher.hash()
+        Ok(hash)
     }
 
-    pub fn next_hash(&mut self) -> Result<Option<(PathBuf, Vec<u8>)>, E> {
-        if let Some(path) = self.next() {
-            if self.breaker.is_aborded() {
-                return Err(E::Aborted);
-            }
-            let mut reader = self.reader.setup(&path)?;
-            let mut hasher = self.hasher.setup()?;
-            let mut buffer = [0u8; BUFFER_SIZE];
-            loop {
-                if self.breaker.is_aborded() {
-                    return Err(E::Aborted);
-                }
-                let bytes_read = reader.read(&mut buffer)?;
-                if bytes_read == 0 {
-                    break;
-                }
-                hasher.absorb(&buffer[..bytes_read])?;
-            }
-            hasher.finish()?;
-            Ok(Some((path, hasher.hash()?.to_vec())))
-        } else {
-            Ok(None)
+    pub fn iter(&self) -> WalkerIter<'_, H, R> {
+        WalkerIter {
+            walker: self,
+            pos: 0,
         }
-    }
-
-    fn hash_file<P: AsRef<Path>>(
-        path: P,
-        hasher: &HasherWrapper<H>,
-        reader: &ReaderWrapper<R>,
-        breaker: &Breaker,
-    ) -> Result<HasherWrapper<H>, E> {
-        if breaker.is_aborded() {
-            return Err(E::Aborted);
-        }
-        let mut reader = reader.setup(&path)?;
-        let mut hasher = hasher.setup()?;
-        // Try mmap
-        if let Some(mmap) = reader.mmap() {
-            hasher.absorb(&mmap)?;
-            hasher.finish()?;
-            return Ok(hasher);
-        }
-        let mut buffer = Vec::new();
-        // Try read full
-        if reader.read_to_end(&mut buffer).is_ok() {
-            hasher.absorb(&buffer)?;
-        } else {
-            // If cannot read full file, read part by part
-            let mut buffer = [0u8; BUFFER_SIZE];
-            loop {
-                if breaker.is_aborded() {
-                    return Err(E::Aborted);
-                }
-                let bytes_read = reader.read(&mut buffer)?;
-                if bytes_read == 0 {
-                    break;
-                }
-                hasher.absorb(&buffer[..bytes_read])?;
-            }
-        }
-        hasher.finish()?;
-        Ok(hasher)
     }
 }
 
-impl<H: Hasher, R: Reader> Iterator for Walker<H, R> {
-    type Item = PathBuf;
+pub struct WalkerIter<'a, H: Hasher, R: Reader> {
+    walker: &'a Walker<H, R>,
+    pos: usize,
+}
 
+impl<'a, H: Hasher, R: Reader> Iterator for WalkerIter<'a, H, R> {
+    type Item = &'a (PathBuf, HasherWrapper<H>);
     fn next(&mut self) -> Option<Self::Item> {
-        if self.breaker.is_aborded() {
+        if self.pos >= self.walker.hashes.len() {
             None
         } else {
-            let next = self.paths.get(self.cursor).map(|p| p.to_owned());
-            self.cursor += 1;
-            next
+            self.pos += 1;
+            Some(&self.walker.hashes[self.pos - 1])
+        }
+    }
+}
+
+impl<'a, H: Hasher, R: Reader> IntoIterator for &'a Walker<H, R> {
+    type Item = &'a (PathBuf, HasherWrapper<H>);
+    type IntoIter = WalkerIter<'a, H, R>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        WalkerIter {
+            walker: self,
+            pos: 0,
         }
     }
 }
@@ -258,7 +285,7 @@ mod test {
             .entry(entry)
             .unwrap()
             .progress(10)
-            .walker(hasher::blake::Blake::new(), reader::moving::Moving::new())
+            .walker(hasher::blake::Blake::new(), reader::direct::Direct::new())
             .unwrap();
         let progress = walker.progress().unwrap();
         let hashing = thread::spawn(move || {

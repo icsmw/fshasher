@@ -7,8 +7,8 @@ pub enum E {
     IO(#[from] io::Error),
     #[error("No available workers")]
     NoAvailableWorkers,
-    #[error("Fail delivery result because issue of channel")]
-    ChannelIssue,
+    #[error("Fail get feedback from main paths collector thread: {0}")]
+    JoinError(String),
     #[error("Fail to get optimal threads number")]
     OptimalThreadsNumber,
 }
