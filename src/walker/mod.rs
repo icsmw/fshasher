@@ -45,7 +45,6 @@ pub struct Walker<H: Hasher, R: Reader> {
     hasher: HasherWrapper<H>,
     reader: ReaderWrapper<R>,
     progress: Option<ProgressChannel>,
-    pos: usize,
 }
 
 impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
@@ -61,7 +60,6 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
             hasher: HasherWrapper::new(hasher),
             reader: ReaderWrapper::new(reader),
             progress,
-            pos: 0,
         })
     }
 
@@ -125,12 +123,8 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
         let hasher = self.hasher.clone();
         let reader = self.reader.clone();
         let total = paths.len();
-        let mut paths_per_jobs = (total as f64 * 0.05).ceil() as usize;
-        if paths_per_jobs < MIN_PATHS_PER_JOB {
-            paths_per_jobs = MIN_PATHS_PER_JOB;
-        } else if paths_per_jobs > MAX_PATHS_PER_JOB {
-            paths_per_jobs = MAX_PATHS_PER_JOB;
-        }
+        let paths_per_jobs =
+            ((total as f64 * 0.05).ceil() as usize).clamp(MIN_PATHS_PER_JOB, MAX_PATHS_PER_JOB);
         let handle: JoinHandle<HashingResult<H>> = thread::spawn(move || {
             let mut summary = hasher.setup()?;
             let mut next = || -> Result<Vec<Job<H, R>>, E> {
@@ -269,7 +263,10 @@ mod test {
         let mut walker = Options::new()
             .entry(entry)
             .unwrap()
-            .walker(hasher::blake::Blake::new(), reader::direct::Direct::new())
+            .walker(
+                hasher::blake::Blake::new(),
+                reader::direct::Direct::default(),
+            )
             .unwrap();
         walker.init().unwrap();
         let hash = walker.hash().unwrap();
@@ -285,7 +282,10 @@ mod test {
             .entry(entry)
             .unwrap()
             .progress(10)
-            .walker(hasher::blake::Blake::new(), reader::direct::Direct::new())
+            .walker(
+                hasher::blake::Blake::new(),
+                reader::direct::Direct::default(),
+            )
             .unwrap();
         let progress = walker.progress().unwrap();
         let hashing = thread::spawn(move || {
@@ -320,7 +320,10 @@ mod test {
             .entry(entry)
             .unwrap()
             .progress(10)
-            .walker(hasher::blake::Blake::new(), reader::direct::Direct::new())
+            .walker(
+                hasher::blake::Blake::new(),
+                reader::direct::Direct::default(),
+            )
             .unwrap();
         let progress = walker.progress().unwrap();
         let breaker = walker.breaker();

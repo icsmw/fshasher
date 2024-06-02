@@ -38,11 +38,13 @@ impl<T: Reader + Send + Sync> ReaderWrapper<T> {
     pub fn mmap(&self) -> Option<Mmap> {
         self.inner.mmap()
     }
-    pub fn clone(&self) -> Self {
+}
+
+impl<T: Reader + Send + Sync> Clone for ReaderWrapper<T> {
+    fn clone(&self) -> Self {
         Self::new(self.inner.clone())
     }
 }
-
 impl<T: Reader + Send + Sync> Read for ReaderWrapper<T> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.inner.read(buf)

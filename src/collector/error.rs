@@ -1,4 +1,4 @@
-use std::{io, path::PathBuf};
+use std::io;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

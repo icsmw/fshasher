@@ -1,6 +1,6 @@
 use crate::collector;
 use glob::PatternError;
-use std::{error, io, path::PathBuf, sync::PoisonError};
+use std::{io, path::PathBuf};
 use thiserror::Error;
 
 #[derive(Error, Debug)]

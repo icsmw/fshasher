@@ -9,18 +9,10 @@ use std::{
     path::Path,
 };
 
+#[derive(Default)]
 pub struct Moving {
     file: Option<File>,
     md: Option<fs::Metadata>,
-}
-
-impl Moving {
-    pub fn new() -> Self {
-        Self {
-            file: None,
-            md: None,
-        }
-    }
 }
 
 impl Reader for Moving {
@@ -35,7 +27,7 @@ impl Reader for Moving {
         })
     }
     fn clone(&self) -> Self {
-        Self::new()
+        Self::default()
     }
     fn mmap(&self) -> Option<Mmap> {
         if self.md.as_ref()?.len() as usize > usize::MAX {

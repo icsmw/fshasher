@@ -4,14 +4,9 @@ use super::Reader;
 use error::E;
 use std::{fs::File, io::Read, path::Path};
 
+#[derive(Default)]
 pub struct Direct {
     file: Option<File>,
-}
-
-impl Direct {
-    pub fn new() -> Self {
-        Self { file: None }
-    }
 }
 
 impl Reader for Direct {
@@ -25,7 +20,7 @@ impl Reader for Direct {
         })
     }
     fn clone(&self) -> Self {
-        Self::new()
+        Self::default()
     }
 }
 

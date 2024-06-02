@@ -44,7 +44,10 @@ impl<T: Hasher> HasherWrapper<T> {
     pub fn reset(&mut self) -> Result<(), walker::E> {
         self.inner.reset().map_err(walker::E::hasher)
     }
-    pub fn clone(&self) -> Self {
+}
+
+impl<T: Hasher> Clone for HasherWrapper<T> {
+    fn clone(&self) -> Self {
         Self::new(self.inner.clone())
     }
 }

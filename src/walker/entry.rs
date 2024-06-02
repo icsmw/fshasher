@@ -34,7 +34,7 @@ impl<T: AsRef<str>> TryInto<FilterAccepted> for Filter<T> {
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub(crate) enum FilterAccepted {
+pub enum FilterAccepted {
     Folders(Pattern),
     Files(Pattern),
     Common(Pattern),
