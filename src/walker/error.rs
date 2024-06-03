@@ -45,6 +45,14 @@ pub enum E {
     Bound(PathBuf, Box<Self>),
     #[error("Fail get feedback from main hashing thread: {0}")]
     JoinError(String),
+    #[error("Ranges for reading strategy \"scenario\" doesn't cover file size: {0}")]
+    NoRangeForScenarioStrategy(u64),
+    #[error(
+        "Break between ranges for reading strategy \"scenario\"; no scenario for size from: {0}"
+    )]
+    InvalidRangesForScenarioStrategy(u64),
+    #[error("Nested ReadingStrategy::Scenario isn't allowed")]
+    NestedtedScenarioStrategy,
 }
 
 impl E {

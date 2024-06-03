@@ -1,6 +1,6 @@
 use super::{Entry, Filter, Progress, ProgressChannel, Walker, E};
 use crate::{Hasher, Reader};
-use std::mem;
+use std::{mem, ops::Range};
 
 #[derive(Debug, Clone)]
 pub enum Tolerance {
@@ -21,7 +21,10 @@ pub enum ReadingStrategy {
     Buffer,
     Complete,
     MemoryMapped,
+    Scenario(Vec<(Range<u64>, Box<ReadingStrategy>)>),
 }
+
+// TODO: combined strategy: set reader depending on file size [..1024 * 1024]: MemoryMapped; [1024 * 1024..]: Buffer
 
 #[derive(Default, Debug)]
 pub struct Options {
@@ -45,9 +48,21 @@ impl Options {
         }
     }
 
-    pub fn reading_strategy(&mut self, reading_strategy: ReadingStrategy) -> &mut Self {
+    pub fn reading_strategy(&mut self, reading_strategy: ReadingStrategy) -> Result<&mut Self, E> {
+        if let ReadingStrategy::Scenario(scenario) = &reading_strategy {
+            let mut from = 0;
+            for (range, strategy) in scenario.iter() {
+                if matches!(**strategy, ReadingStrategy::Scenario(_)) {
+                    return Err(E::NestedtedScenarioStrategy);
+                }
+                if range.start != from {
+                    return Err(E::InvalidRangesForScenarioStrategy(from));
+                }
+                from = range.end;
+            }
+        }
         self.reading_strategy = reading_strategy;
-        self
+        Ok(self)
     }
 
     pub fn threads(&mut self, threads: usize) -> &mut Self {

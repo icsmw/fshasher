@@ -258,7 +258,7 @@ mod test {
     use super::*;
     use crate::*;
     use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-    use std::thread;
+    use std::{ops::Range, thread};
 
     #[test]
     fn walk() {
@@ -287,9 +287,14 @@ mod test {
             .entry(entry)
             .unwrap()
             .progress(10)
+            .reading_strategy(ReadingStrategy::Scenario(vec![
+                (0..1024 * 1024, Box::new(ReadingStrategy::Complete)),
+                (1024 * 1024..u64::MAX, Box::new(ReadingStrategy::Buffer)),
+            ]))
+            .unwrap()
             .walker(
                 hasher::blake::Blake::new(),
-                reader::mapping::Mapping::default(),
+                reader::buffering::Buffering::default(),
             )
             .unwrap();
         let progress = walker.progress().unwrap();

@@ -4,7 +4,7 @@ use crate::{breaker::Breaker, Hasher, Reader};
 use log::{debug, error};
 use std::{
     io::Read,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc::{channel, Receiver, Sender},
@@ -62,7 +62,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
                     if breaker.is_aborded() {
                         break 'outer;
                     }
-                    match hash_file(hasher, reader, &reading_strategy, &breaker) {
+                    match hash_file(&path, hasher, reader, &reading_strategy, &breaker) {
                         Ok(hasher) => collected.push((path, hasher)),
                         Err(err) => {
                             if response(Action::Error(path, err)).is_err() {
@@ -116,6 +116,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
 }
 
 fn hash_file<H: Hasher, R: Reader>(
+    path: &Path,
     mut hasher: HasherWrapper<H>,
     mut reader: ReaderWrapper<R>,
     reading_strategy: &ReadingStrategy,
@@ -124,28 +125,52 @@ fn hash_file<H: Hasher, R: Reader>(
     if breaker.is_aborded() {
         return Err(E::Aborted);
     }
-    match reading_strategy {
-        ReadingStrategy::Buffer => {
-            let mut buffer = [0u8; BUFFER_SIZE];
-            loop {
-                if breaker.is_aborded() {
-                    return Err(E::Aborted);
+    let mut apply = |reading_strategy: &ReadingStrategy| {
+        match reading_strategy {
+            ReadingStrategy::Buffer => {
+                let mut buffer = [0u8; BUFFER_SIZE];
+                loop {
+                    if breaker.is_aborded() {
+                        return Err(E::Aborted);
+                    }
+                    let bytes_read = reader.read(&mut buffer)?;
+                    if bytes_read == 0 {
+                        break;
+                    }
+                    hasher.absorb(&buffer[..bytes_read])?;
                 }
-                let bytes_read = reader.read(&mut buffer)?;
-                if bytes_read == 0 {
-                    break;
-                }
-                hasher.absorb(&buffer[..bytes_read])?;
             }
+            ReadingStrategy::Complete => {
+                let mut buffer = Vec::new();
+                reader.read_to_end(&mut buffer)?;
+                hasher.absorb(&buffer)?
+            }
+            ReadingStrategy::MemoryMapped => {
+                hasher.absorb(reader.mmap()?)?;
+            }
+            ReadingStrategy::Scenario(..) => {
+                return Err(E::NestedtedScenarioStrategy);
+            }
+        };
+        Ok(())
+    };
+    match reading_strategy {
+        ReadingStrategy::Buffer | ReadingStrategy::Complete | ReadingStrategy::MemoryMapped => {
+            apply(reading_strategy)?;
         }
-        ReadingStrategy::Complete => {
-            let mut buffer = Vec::new();
-            reader.read_to_end(&mut buffer)?;
-            hasher.absorb(&buffer)?
-        }
-        ReadingStrategy::MemoryMapped => {
-            let mmap = reader.mmap()?;
-            hasher.absorb(mmap)?;
+        ReadingStrategy::Scenario(scenario) => {
+            let md = path.metadata()?;
+            let strategy = scenario
+                .iter()
+                .find_map(|(range, strategy)| {
+                    if range.contains(&md.len()) {
+                        Some(strategy)
+                    } else {
+                        None
+                    }
+                })
+                .ok_or(E::NoRangeForScenarioStrategy(md.len()))?;
+            apply(strategy)?;
         }
     };
     hasher.finish()?;
