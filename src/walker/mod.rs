@@ -270,7 +270,7 @@ mod test {
             .unwrap()
             .walker(
                 hasher::blake::Blake::new(),
-                reader::direct::Direct::default(),
+                reader::buffering::Buffering::default(),
             )
             .unwrap();
         walker.init().unwrap();
@@ -289,7 +289,7 @@ mod test {
             .progress(10)
             .walker(
                 hasher::blake::Blake::new(),
-                reader::direct::Direct::default(),
+                reader::mapping::Mapping::default(),
             )
             .unwrap();
         let progress = walker.progress().unwrap();
@@ -327,7 +327,7 @@ mod test {
             .progress(10)
             .walker(
                 hasher::blake::Blake::new(),
-                reader::direct::Direct::default(),
+                reader::buffering::Buffering::default(),
             )
             .unwrap();
         let progress = walker.progress().unwrap();

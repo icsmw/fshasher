@@ -1,7 +1,6 @@
-pub mod direct;
-pub mod moving;
+pub mod buffering;
+pub mod mapping;
 
-use memmap2::Mmap;
 use std::{error, io::Read, path::Path};
 
 use crate::walker;
@@ -13,7 +12,7 @@ pub trait Reader: Read + Send + Sync {
     where
         Self: Sized;
     fn clone(&self) -> Self;
-    fn mmap(&self) -> Result<Mmap, Self::Error>;
+    fn mmap(&mut self) -> Result<&[u8], Self::Error>;
 }
 
 #[derive(Debug)]
@@ -33,7 +32,7 @@ impl<T: Reader + Send + Sync> ReaderWrapper<T> {
             inner: self.inner.setup(path).map_err(walker::E::reader)?,
         })
     }
-    pub fn mmap(&self) -> Result<Mmap, walker::E> {
+    pub fn mmap(&mut self) -> Result<&[u8], walker::E> {
         self.inner.mmap().map_err(walker::E::reader)
     }
 }

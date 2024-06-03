@@ -145,7 +145,7 @@ fn hash_file<H: Hasher, R: Reader>(
         }
         ReadingStrategy::MemoryMapped => {
             let mmap = reader.mmap()?;
-            hasher.absorb(&mmap)?;
+            hasher.absorb(mmap)?;
         }
     };
     hasher.finish()?;
