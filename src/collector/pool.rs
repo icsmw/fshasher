@@ -24,7 +24,7 @@ impl Pool {
             .filter(|w| w.is_available())
             .min_by_key(|w| w.count())
     }
-    pub fn is_done(&self) -> bool {
+    pub fn is_all_done(&self) -> bool {
         self.workers.iter().map(|w| w.count()).sum::<usize>() == 0
     }
     pub fn shutdown(&mut self) {

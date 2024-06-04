@@ -27,8 +27,8 @@ const MIN_PATHS_PER_JOB: usize = 2;
 const MAX_PATHS_PER_JOB: usize = 500;
 
 pub enum Action<H: Hasher> {
-    Finished(Vec<(PathBuf, HasherWrapper<H>)>),
-    Shutdown,
+    Processed(Vec<(PathBuf, HasherWrapper<H>)>),
+    WorkerShutdownNotification,
     Error(PathBuf, E),
 }
 
@@ -63,11 +63,12 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
         })
     }
 
-    pub fn init(&mut self) -> Result<(), E> {
+    pub fn init(&mut self) -> Result<&mut Self, E> {
         let now = Instant::now();
-        let opt = self.opt.as_mut().ok_or(E::AlreadyInited)?;
+        self.reset();
+        let opt = self.opt.as_mut().ok_or(E::IsNotInited)?;
         let progress = self.progress.as_ref().map(|(progress, _)| progress.clone());
-        for entry in mem::take(&mut opt.entries) {
+        for entry in opt.entries.iter() {
             let (mut collected, mut invalid) = collect(
                 &progress,
                 entry,
@@ -85,7 +86,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
             now.elapsed().as_millis(),
             now.elapsed().as_secs()
         );
-        Ok(())
+        Ok(self)
     }
 
     pub fn breaker(&self) -> Breaker {
@@ -96,8 +97,8 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
         &self.invalid
     }
 
-    pub fn total(&self) -> usize {
-        self.paths.len()
+    pub fn count(&self) -> usize {
+        self.hashes.len()
     }
 
     pub fn progress(&mut self) -> Option<Receiver<Tick>> {
@@ -109,7 +110,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
         if self.paths.is_empty() {
             return Ok(&[]);
         }
-        let opt = self.opt.as_mut().ok_or(E::AlreadyInited)?;
+        let opt = self.opt.as_mut().ok_or(E::IsNotInited)?;
         let (tx_queue, rx_queue): (Sender<Action<H>>, Receiver<Action<H>>) = channel();
         let progress = self.progress.as_ref().map(|(progress, _)| progress.clone());
         let breaker = self.breaker.clone();
@@ -132,7 +133,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
             ((total as f64 * 0.05).ceil() as usize).clamp(MIN_PATHS_PER_JOB, MAX_PATHS_PER_JOB);
         let handle: JoinHandle<HashingResult<H>> = thread::spawn(move || {
             let mut summary = hasher.setup()?;
-            let mut next = || -> Result<Vec<Job<H, R>>, E> {
+            let mut next_job = || -> Result<Vec<Job<H, R>>, E> {
                 if paths.is_empty() {
                     return Ok(Vec::new());
                 }
@@ -151,27 +152,41 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                 Ok(jobs)
             };
             for worker in workers.iter() {
-                let jobs: Vec<(PathBuf, HasherWrapper<H>, ReaderWrapper<R>)> = next()?;
+                let jobs: Vec<(PathBuf, HasherWrapper<H>, ReaderWrapper<R>)> = next_job()?;
                 if jobs.is_empty() {
                     break;
                 }
                 worker.deligate(jobs);
             }
             let mut hashes = Vec::new();
-            while let Ok(action) = rx_queue.recv() {
+            let mut waiting_for_shutdown = false;
+            let mut pending: Option<Action<H>> = None;
+            'outer: loop {
+                let next = if let Some(next) = pending.take() {
+                    next
+                } else if let Ok(next) = rx_queue.recv() {
+                    next
+                } else {
+                    break 'outer;
+                };
                 if breaker.is_aborded() {
-                    break;
+                    break 'outer;
                 }
-                match action {
-                    Action::Finished(mut processed) => {
+                match next {
+                    Action::Processed(mut processed) => {
                         hashes.append(&mut processed);
                         if let Some(ref progress) = progress {
                             progress.notify(JobType::Hashing, hashes.len(), total)
                         }
                     }
-                    Action::Shutdown => {
+                    Action::WorkerShutdownNotification => {
                         if workers.is_all_down() {
-                            break;
+                            if let Ok(next) = rx_queue.try_recv() {
+                                pending = Some(next);
+                                continue;
+                            } else {
+                                break 'outer;
+                            }
                         }
                     }
                     Action::Error(path, err) => {
@@ -179,11 +194,15 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                         return Err(E::Bound(path, Box::new(err)));
                     }
                 }
-                for worker in workers.iter().filter(|w| w.is_free()) {
-                    let jobs: Vec<(PathBuf, HasherWrapper<H>, ReaderWrapper<R>)> = next()?;
+                if waiting_for_shutdown {
+                    continue;
+                }
+                'deligate: for worker in workers.iter().filter(|w| w.is_free()) {
+                    let jobs: Vec<(PathBuf, HasherWrapper<H>, ReaderWrapper<R>)> = next_job()?;
                     if jobs.is_empty() {
+                        waiting_for_shutdown = true;
                         workers.shutdown();
-                        break;
+                        break 'deligate;
                     }
                     worker.deligate(jobs);
                 }
@@ -221,6 +240,14 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
             walker: self,
             pos: 0,
         }
+    }
+
+    fn reset(&mut self) {
+        self.paths = Vec::new();
+        self.invalid = Vec::new();
+        self.hash = None;
+        self.hashes = Vec::new();
+        self.breaker = Breaker::new();
     }
 }
 

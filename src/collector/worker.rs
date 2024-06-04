@@ -50,9 +50,9 @@ impl Worker {
                     collected.push(path);
                     Ok(())
                 } else if path.is_dir() {
-                    send(Action::Read(path))
+                    send(Action::Deligate(path))
                 } else {
-                    Ok(())
+                    unreachable!("Expecting only file or folder");
                 }
             };
             'outer: while let Ok(task) = rx_task.recv() {
@@ -76,6 +76,7 @@ impl Worker {
                         break 'outer;
                     }
                     let Ok(path) = el.map(|el| el.path()) else {
+                        // TODO: report error
                         continue;
                     };
                     if !entry.filtered(&path) {
@@ -101,7 +102,7 @@ impl Worker {
                         }
                     }
                 }
-                if response(Action::Finished(collected)).is_err() || breaker.is_aborded() {
+                if response(Action::Processed(collected)).is_err() || breaker.is_aborded() {
                     break 'outer;
                 }
             }

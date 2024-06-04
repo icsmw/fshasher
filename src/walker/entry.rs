@@ -75,6 +75,12 @@ impl Entry {
         Self::default()
     }
 
+    pub fn from<T: AsRef<Path>>(path: T) -> Result<Self, E> {
+        let mut entry = Self::new();
+        entry.entry(path)?;
+        Ok(entry)
+    }
+
     pub fn entry<T: AsRef<Path>>(&mut self, path: T) -> Result<&mut Self, E> {
         let path = path.as_ref().to_path_buf();
         if !path.is_absolute() {

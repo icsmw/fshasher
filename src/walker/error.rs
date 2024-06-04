@@ -23,8 +23,8 @@ pub enum E {
     AbsolutePathRequired(PathBuf),
     #[error("Operation has been aborted")]
     Aborted,
-    #[error("Walker can be inited only once")]
-    AlreadyInited,
+    #[error("Walker isn't inited")]
+    IsNotInited,
     #[error("Reader error: {0}")]
     Reader(String),
     #[error("Hasher error: {0}")]

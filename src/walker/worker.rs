@@ -55,7 +55,9 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
             'outer: while let Ok(task) = rx_task.recv() {
                 let jobs = match task {
                     Task::Hash(jobs) => jobs,
-                    Task::Shutdown => break,
+                    Task::Shutdown => {
+                        break;
+                    }
                 };
                 let mut collected = Vec::new();
                 for (path, hasher, reader) in jobs.into_iter() {
@@ -71,12 +73,12 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
                         }
                     };
                 }
-                if response(Action::Finished(collected)).is_err() {
+                if response(Action::Processed(collected)).is_err() {
                     break 'outer;
                 }
             }
             available_inner.store(false, Ordering::Relaxed);
-            if tx_queue.send(Action::Shutdown).is_err() {
+            if tx_queue.send(Action::WorkerShutdownNotification).is_err() {
                 error!("Worker cannot comunicate with pool. Channel error. Worker will be closed");
             }
             debug!("Hasher worker has been shutdown");
