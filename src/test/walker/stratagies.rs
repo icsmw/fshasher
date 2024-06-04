@@ -1,11 +1,9 @@
 use crate::{
     error::E, hasher, reader, test::usecase::*, Entry, Options, ReadingStrategy, Tolerance, Walker,
 };
-use std::io;
 
 #[test]
 fn test() -> Result<(), E> {
-    env_logger::init();
     let usecase = UseCase::gen(5, 3, 10, &["ts", "js", "txt"])?;
     let mut walker_a = Options::new()
         .entry(Entry::from(&usecase.root)?)?
