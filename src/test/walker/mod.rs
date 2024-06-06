@@ -1,5 +1,5 @@
 mod stratagies;
-use crate::{error::E, hasher, reader, test::usecase::*, Entry, Options, Tolerance};
+use crate::{entry::Entry, error::E, hasher, reader, test::usecase::*, Options, Tolerance};
 
 #[test]
 fn correction() -> Result<(), E> {

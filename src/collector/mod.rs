@@ -4,7 +4,8 @@ mod worker;
 
 use crate::{
     breaker::Breaker,
-    walker::{Entry, JobType, Progress, Tolerance},
+    entry::Entry,
+    walker::{JobType, Progress, Tolerance},
 };
 pub use error::E;
 use log::{debug, error, warn};

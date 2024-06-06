@@ -1,4 +1,4 @@
-use crate::collector;
+use crate::{collector, entry};
 use glob::PatternError;
 use std::{io, path::PathBuf};
 use thiserror::Error;
@@ -37,6 +37,8 @@ pub enum E {
     ChannelError(String),
     #[error("Collector error: {0}")]
     CollectorError(collector::E),
+    #[error("Entry error: {0}")]
+    EntryError(entry::E),
     #[error("Fail to get optimal threads number")]
     OptimalThreadsNumber,
     #[error("No available workers")]
@@ -73,6 +75,12 @@ impl From<(String, PatternError)> for E {
 impl From<collector::E> for E {
     fn from(err: collector::E) -> Self {
         E::CollectorError(err)
+    }
+}
+
+impl From<entry::E> for E {
+    fn from(err: entry::E) -> Self {
+        E::EntryError(err)
     }
 }
 

@@ -1,5 +1,5 @@
 use super::{Action, Worker};
-use crate::{breaker::Breaker, walker::Entry};
+use crate::{breaker::Breaker, entry::Entry};
 use std::sync::mpsc::Sender;
 
 pub struct Pool {

@@ -1,6 +1,6 @@
-use crate::test::usecase::*;
 use crate::*;
-use walker::{Filter, FilterAccepted};
+use entry::{Filter, FilterAccepted, PatternFilter, PatternFilterAccepted};
+use test::usecase::*;
 
 #[test]
 fn filters() -> Result<(), error::E> {
@@ -12,6 +12,35 @@ fn filters() -> Result<(), error::E> {
             assert!(aaa.filtered(p).unwrap());
         } else {
             assert!(!aaa.filtered(p).unwrap());
+        }
+    });
+    usecase.clean()?;
+    Ok(())
+}
+
+#[test]
+fn patterns() -> Result<(), error::E> {
+    let usecase = UseCase::unnamed(1, 9, 1, &["aaa", "bbb", "ccc"])?;
+    let aaa: PatternFilterAccepted = PatternFilter::Accept("*.aaa").try_into().unwrap();
+    usecase.files.iter().for_each(|p| {
+        let ext = p.extension().unwrap().to_str().unwrap();
+        if ext == "aaa" {
+            assert!(aaa.filtered(p));
+        } else {
+            assert!(!aaa.filtered(p));
+        }
+    });
+    let ddd: PatternFilterAccepted = PatternFilter::Accept("*.ddd").try_into().unwrap();
+    usecase.files.iter().for_each(|p| {
+        assert!(!ddd.filtered(p));
+    });
+    let ccc: PatternFilterAccepted = PatternFilter::Ignore("*.ccc").try_into().unwrap();
+    usecase.files.iter().for_each(|p| {
+        let ext = p.extension().unwrap().to_str().unwrap();
+        if ext == "ccc" {
+            assert!(!ccc.filtered(p));
+        } else {
+            assert!(ccc.filtered(p));
         }
     });
     usecase.clean()?;
@@ -243,6 +272,116 @@ fn folders_and_files_common_include() -> Result<(), error::E> {
     let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
     assert!(!a.0.is_empty());
     assert!(!a.0.iter().any(|p| !p.to_string_lossy().contains("include")));
+    usecase.clean()?;
+    Ok(())
+}
+
+#[test]
+fn patterns_exclude() -> Result<(), error::E> {
+    let usecase = UseCase::folders_and_files(
+        &[
+            "aaa",
+            "bbb",
+            "exclude_ccc",
+            "ddd_exclude",
+            "exclude",
+            "eee_exclude_eee",
+        ],
+        &[
+            "aaa",
+            "bbb",
+            "exclude_ccc",
+            "ddd_exclude",
+            "exclude",
+            "eee_exclude_eee",
+        ],
+        3,
+        &["aaa", "bbb", "ccc"],
+    )?;
+    let breaker = Breaker::new();
+    let mut entry = Entry::from(&usecase.root)?;
+    entry
+        .pattern(PatternFilter::Ignore("*exclude*"))
+        .expect("filter is set");
+    let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
+    assert!(!a.0.is_empty());
+    assert!(!a
+        .0
+        .iter()
+        .any(|p| { p.to_string_lossy().contains("exclude") }));
+    usecase.clean()?;
+    Ok(())
+}
+
+#[test]
+fn patterns_include() -> Result<(), error::E> {
+    let usecase = UseCase::folders_and_files(
+        &[
+            "aaa",
+            "bbb",
+            "include_ccc",
+            "ddd_include",
+            "include",
+            "eee_include_eee",
+        ],
+        &[
+            "aaa",
+            "bbb",
+            "include_ccc",
+            "ddd_include",
+            "include",
+            "eee_include_eee",
+        ],
+        3,
+        &["aaa", "bbb", "ccc"],
+    )?;
+    let breaker = Breaker::new();
+    let mut entry = Entry::from(&usecase.root)?;
+    entry
+        .pattern(PatternFilter::Accept("*include*"))
+        .expect("filter is set");
+    let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
+    assert!(!a.0.is_empty());
+    assert!(!a.0.iter().any(|p| !p.to_string_lossy().contains("include")));
+    usecase.clean()?;
+    Ok(())
+}
+
+#[test]
+fn patterns_cmb() -> Result<(), error::E> {
+    let usecase = UseCase::folders_and_files(
+        &[
+            "aaa",
+            "bbb",
+            "exclude_ccc",
+            "ddd_exclude",
+            "exclude",
+            "eee_exclude_eee",
+        ],
+        &[
+            "aaa",
+            "bbb",
+            "exclude_ccc",
+            "ddd_exclude",
+            "exclude",
+            "eee_exclude_eee",
+        ],
+        3,
+        &["aaa", "bbb", "ccc"],
+    )?;
+    let breaker = Breaker::new();
+    let mut entry = Entry::from(&usecase.root)?;
+    entry
+        .pattern(PatternFilter::Cmb(vec![
+            PatternFilter::Ignore("*exclude*"),
+            PatternFilter::Ignore("*.ccc"),
+        ]))
+        .expect("filter is set");
+    let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
+    assert!(!a.0.is_empty());
+    assert!(!a.0.iter().any(|p| {
+        p.to_string_lossy().contains("exclude") && p.extension().unwrap().to_str().unwrap() != "ccc"
+    }));
     usecase.clean()?;
     Ok(())
 }

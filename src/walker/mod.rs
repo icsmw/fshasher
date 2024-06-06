@@ -1,4 +1,3 @@
-mod entry;
 mod error;
 mod options;
 mod pool;
@@ -6,9 +5,12 @@ mod progress;
 mod worker;
 
 use crate::{
-    collector::collect, hasher::HasherWrapper, reader::ReaderWrapper, Breaker, Hasher, Reader,
+    collector::collect,
+    entry::{Entry, Filter},
+    hasher::HasherWrapper,
+    reader::ReaderWrapper,
+    Breaker, Hasher, Reader,
 };
-pub use entry::{Entry, Filter, FilterAccepted};
 pub use error::E;
 use log::debug;
 pub use options::{Options, ReadingStrategy, Tolerance};

@@ -1,6 +1,6 @@
 use super::Action;
 
-use crate::{breaker::Breaker, walker::Entry};
+use crate::{breaker::Breaker, entry::Entry};
 use log::{debug, error};
 use std::{
     fs::{read_dir, read_link},
