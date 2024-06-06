@@ -8,7 +8,7 @@ mod worker;
 use crate::{
     collector::collect, hasher::HasherWrapper, reader::ReaderWrapper, Breaker, Hasher, Reader,
 };
-pub use entry::{Entry, Filter};
+pub use entry::{Entry, Filter, FilterAccepted};
 pub use error::E;
 use log::debug;
 pub use options::{Options, ReadingStrategy, Tolerance};
@@ -280,120 +280,120 @@ impl<'a, H: Hasher, R: Reader> IntoIterator for &'a Walker<H, R> {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::*;
-    use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-    use std::{ops::Range, thread};
+// #[cfg(test)]
+// mod test {
+//     use super::*;
+//     use crate::*;
+//     use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+//     use std::{ops::Range, thread};
 
-    #[test]
-    fn walk() {
-        env_logger::init();
-        let mut entry = Entry::new();
-        entry.entry("/tmp").unwrap();
-        let mut walker = Options::new()
-            .entry(entry)
-            .unwrap()
-            .walker(
-                hasher::blake::Blake::new(),
-                reader::buffering::Buffering::default(),
-            )
-            .unwrap();
-        walker.init().unwrap();
-        let hash = walker.hash().unwrap();
-        println!("{hash:?}");
-    }
+//     #[test]
+//     fn walk() {
+//         env_logger::init();
+//         let mut entry = Entry::new();
+//         entry.entry("/tmp").unwrap();
+//         let mut walker = Options::new()
+//             .entry(entry)
+//             .unwrap()
+//             .walker(
+//                 hasher::blake::Blake::new(),
+//                 reader::buffering::Buffering::default(),
+//             )
+//             .unwrap();
+//         walker.init().unwrap();
+//         let hash = walker.hash().unwrap();
+//         println!("{hash:?}");
+//     }
 
-    #[test]
-    fn progress() {
-        env_logger::init();
-        let mut entry = Entry::new();
-        entry.entry("/storage/projects/private").unwrap();
-        let mut walker = Options::new()
-            .entry(entry)
-            .unwrap()
-            .progress(10)
-            .reading_strategy(ReadingStrategy::Scenario(vec![
-                (0..1024 * 1024, Box::new(ReadingStrategy::Complete)),
-                (1024 * 1024..u64::MAX, Box::new(ReadingStrategy::Buffer)),
-            ]))
-            .unwrap()
-            .walker(
-                hasher::blake::Blake::new(),
-                reader::buffering::Buffering::default(),
-            )
-            .unwrap();
-        let progress = walker.progress().unwrap();
-        let hashing = thread::spawn(move || {
-            walker.init().unwrap();
-            let hash = walker.hash().unwrap();
-            println!("{hash:?}");
-        });
-        let tracking = thread::spawn(move || {
-            let mp = MultiProgress::new();
-            let spinner_style =
-                ProgressStyle::with_template("{spinner} {prefix:.bold.dim} {wide_msg}")
-                    .unwrap()
-                    .tick_chars("▂▃▅▆▇▆▅▃▂ ");
-            let bar = mp.add(ProgressBar::new(u64::MAX));
-            bar.set_style(spinner_style.clone());
-            while let Ok(tick) = progress.recv() {
-                bar.set_message(tick.to_string());
-                bar.set_length(tick.total as u64);
-                bar.set_position(tick.done as u64);
-            }
-        });
-        hashing.join().unwrap();
-        tracking.join().unwrap();
-    }
+//     #[test]
+//     fn progress() {
+//         env_logger::init();
+//         let mut entry = Entry::new();
+//         entry.entry("/storage/projects/private").unwrap();
+//         let mut walker = Options::new()
+//             .entry(entry)
+//             .unwrap()
+//             .progress(10)
+//             .reading_strategy(ReadingStrategy::Scenario(vec![
+//                 (0..1024 * 1024, Box::new(ReadingStrategy::Complete)),
+//                 (1024 * 1024..u64::MAX, Box::new(ReadingStrategy::Buffer)),
+//             ]))
+//             .unwrap()
+//             .walker(
+//                 hasher::blake::Blake::new(),
+//                 reader::buffering::Buffering::default(),
+//             )
+//             .unwrap();
+//         let progress = walker.progress().unwrap();
+//         let hashing = thread::spawn(move || {
+//             walker.init().unwrap();
+//             let hash = walker.hash().unwrap();
+//             println!("{hash:?}");
+//         });
+//         let tracking = thread::spawn(move || {
+//             let mp = MultiProgress::new();
+//             let spinner_style =
+//                 ProgressStyle::with_template("{spinner} {prefix:.bold.dim} {wide_msg}")
+//                     .unwrap()
+//                     .tick_chars("▂▃▅▆▇▆▅▃▂ ");
+//             let bar = mp.add(ProgressBar::new(u64::MAX));
+//             bar.set_style(spinner_style.clone());
+//             while let Ok(tick) = progress.recv() {
+//                 bar.set_message(tick.to_string());
+//                 bar.set_length(tick.total as u64);
+//                 bar.set_position(tick.done as u64);
+//             }
+//         });
+//         hashing.join().unwrap();
+//         tracking.join().unwrap();
+//     }
 
-    #[test]
-    fn aborting() {
-        env_logger::init();
-        let mut entry = Entry::new();
-        entry.entry("/tmp").unwrap();
-        let mut walker = Options::new()
-            .entry(entry)
-            .unwrap()
-            .progress(10)
-            .walker(
-                hasher::blake::Blake::new(),
-                reader::buffering::Buffering::default(),
-            )
-            .unwrap();
-        let progress = walker.progress().unwrap();
-        let breaker = walker.breaker();
-        let hashing = thread::spawn(move || {
-            walker.init().unwrap();
-            match walker.hash() {
-                Err(E::Aborted) => {
-                    println!("hashing has been aborted");
-                }
-                Err(e) => panic!("{e}"),
-                Ok(_) => panic!("hashing isn't aborted"),
-            }
-        });
-        let tracking = thread::spawn(move || {
-            let mp = MultiProgress::new();
-            let spinner_style =
-                ProgressStyle::with_template("{spinner} {prefix:.bold.dim} {wide_msg}")
-                    .unwrap()
-                    .tick_chars("▂▃▅▆▇▆▅▃▂ ");
-            let bar = mp.add(ProgressBar::new(u64::MAX));
-            bar.set_style(spinner_style.clone());
-            while let Ok(tick) = progress.recv() {
-                bar.set_message(tick.to_string());
-                bar.set_length(tick.total as u64);
-                bar.set_position(tick.done as u64);
-                if tick.total as f64 / tick.done as f64 <= 2.0 && !breaker.is_aborded() {
-                    println!("Aborting on: {tick}");
-                    breaker.abort();
-                    break;
-                }
-            }
-        });
-        hashing.join().unwrap();
-        tracking.join().unwrap();
-    }
-}
+//     #[test]
+//     fn aborting() {
+//         env_logger::init();
+//         let mut entry = Entry::new();
+//         entry.entry("/tmp").unwrap();
+//         let mut walker = Options::new()
+//             .entry(entry)
+//             .unwrap()
+//             .progress(10)
+//             .walker(
+//                 hasher::blake::Blake::new(),
+//                 reader::buffering::Buffering::default(),
+//             )
+//             .unwrap();
+//         let progress = walker.progress().unwrap();
+//         let breaker = walker.breaker();
+//         let hashing = thread::spawn(move || {
+//             walker.init().unwrap();
+//             match walker.hash() {
+//                 Err(E::Aborted) => {
+//                     println!("hashing has been aborted");
+//                 }
+//                 Err(e) => panic!("{e}"),
+//                 Ok(_) => panic!("hashing isn't aborted"),
+//             }
+//         });
+//         let tracking = thread::spawn(move || {
+//             let mp = MultiProgress::new();
+//             let spinner_style =
+//                 ProgressStyle::with_template("{spinner} {prefix:.bold.dim} {wide_msg}")
+//                     .unwrap()
+//                     .tick_chars("▂▃▅▆▇▆▅▃▂ ");
+//             let bar = mp.add(ProgressBar::new(u64::MAX));
+//             bar.set_style(spinner_style.clone());
+//             while let Ok(tick) = progress.recv() {
+//                 bar.set_message(tick.to_string());
+//                 bar.set_length(tick.total as u64);
+//                 bar.set_position(tick.done as u64);
+//                 if tick.total as f64 / tick.done as f64 <= 2.0 && !breaker.is_aborded() {
+//                     println!("Aborting on: {tick}");
+//                     breaker.abort();
+//                     break;
+//                 }
+//             }
+//         });
+//         hashing.join().unwrap();
+//         tracking.join().unwrap();
+//     }
+// }

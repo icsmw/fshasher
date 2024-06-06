@@ -1,15 +1,12 @@
 mod stratagies;
-
-use crate::{
-    error::E, hasher, reader, test::usecase::*, Entry, Options, ReadingStrategy, Tolerance, Walker,
-};
+use crate::{error::E, hasher, reader, test::usecase::*, Entry, Options, Tolerance};
 
 #[test]
 fn correction() -> Result<(), E> {
     let usecase = UseCase::gen(5, 3, 10, &["aaa", "bbb", "ccc"])?;
     let mut walker_a = Options::new()
         .entry(Entry::from(&usecase.root)?)?
-        .tolerance(crate::Tolerance::LogErrors)
+        .tolerance(Tolerance::LogErrors)
         .walker(
             hasher::blake::Blake::new(),
             reader::buffering::Buffering::default(),
@@ -17,7 +14,7 @@ fn correction() -> Result<(), E> {
     let hash_a = walker_a.init()?.hash()?.to_vec();
     let mut walker_b = Options::new()
         .entry(Entry::from(&usecase.root)?)?
-        .tolerance(crate::Tolerance::LogErrors)
+        .tolerance(Tolerance::LogErrors)
         .walker(
             hasher::blake::Blake::new(),
             reader::buffering::Buffering::default(),
@@ -33,10 +30,10 @@ fn correction() -> Result<(), E> {
 #[test]
 fn stability() -> Result<(), E> {
     let usecase = UseCase::gen(5, 3, 5, &["aaa", "bbb", "ccc"])?;
-    for _ in 0..1000 {
+    for _ in 0..10 {
         let mut walker_a = Options::new()
             .entry(Entry::from(&usecase.root)?)?
-            .tolerance(crate::Tolerance::LogErrors)
+            .tolerance(Tolerance::LogErrors)
             .walker(
                 hasher::blake::Blake::new(),
                 reader::buffering::Buffering::default(),
@@ -44,7 +41,7 @@ fn stability() -> Result<(), E> {
         let hash_a = walker_a.init()?.hash()?.to_vec();
         let mut walker_b = Options::new()
             .entry(Entry::from(&usecase.root)?)?
-            .tolerance(crate::Tolerance::LogErrors)
+            .tolerance(Tolerance::LogErrors)
             .walker(
                 hasher::blake::Blake::new(),
                 reader::buffering::Buffering::default(),

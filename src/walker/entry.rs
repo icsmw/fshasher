@@ -41,25 +41,27 @@ pub enum FilterAccepted {
 }
 
 impl FilterAccepted {
-    pub fn filtered<P: AsRef<Path>>(&self, path: P) -> bool {
-        match self {
-            Self::Files(p) => {
-                if path.as_ref().is_file() {
-                    p
-                } else {
-                    return true;
+    pub fn filtered<P: AsRef<Path>>(&self, path: P) -> Option<bool> {
+        Some(
+            match self {
+                Self::Files(p) => {
+                    if path.as_ref().is_file() {
+                        p
+                    } else {
+                        return None;
+                    }
                 }
-            }
-            Self::Folders(p) => {
-                if path.as_ref().is_dir() {
-                    p
-                } else {
-                    return true;
+                Self::Folders(p) => {
+                    if path.as_ref().is_dir() {
+                        p
+                    } else {
+                        return None;
+                    }
                 }
+                Self::Common(p) => p,
             }
-            Self::Common(p) => p,
-        }
-        .matches_path(path.as_ref())
+            .matches_path(path.as_ref()),
+        )
     }
 }
 
@@ -109,13 +111,25 @@ impl Entry {
     }
 
     pub fn filtered<P: AsRef<Path>>(&self, path: P) -> bool {
-        if self.exclude.iter().any(|filter| filter.filtered(&path)) {
+        if self.exclude.iter().any(|filter| {
+            if let Some(v) = filter.filtered(&path) {
+                v
+            } else {
+                false
+            }
+        }) {
             return false;
         }
         if self.include.is_empty() {
             true
         } else {
-            self.include.iter().any(|filter| filter.filtered(&path))
+            self.include.iter().any(|filter| {
+                if let Some(v) = filter.filtered(&path) {
+                    v
+                } else {
+                    true
+                }
+            })
         }
     }
 }

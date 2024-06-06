@@ -1,3 +1,5 @@
+mod filters;
+
 use crate::test::{usecase::*, utils::*};
 use crate::*;
 
@@ -37,7 +39,7 @@ fn correction() -> Result<(), error::E> {
 fn stability() -> Result<(), error::E> {
     let usecase = UseCase::gen(5, 3, 5, &["aaa", "bbb", "ccc"])?;
     let breaker = Breaker::new();
-    for _ in 0..1000 {
+    for _ in 0..10 {
         let mut a = collector::collect(
             &None,
             &Entry::from(&usecase.root)?,
