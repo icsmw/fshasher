@@ -1,3 +1,6 @@
+pub(crate) mod extentions;
+pub(crate) mod strategy;
+pub(crate) use extentions::Extentions;
 use log::debug;
 use rand::Rng;
 use std::{
@@ -7,6 +10,7 @@ use std::{
     path::PathBuf,
     time::Instant,
 };
+pub(crate) use strategy::Strategy;
 use uuid::Uuid;
 
 pub struct UseCase {
@@ -15,28 +19,35 @@ pub struct UseCase {
 }
 
 impl UseCase {
+    pub fn unnamed(folders: u16, files: u16, deep: u8, exts: &[&str]) -> Result<Self, io::Error> {
+        Self::gen(
+            Strategy::Number(folders),
+            Strategy::Number(files),
+            deep,
+            exts,
+        )
+    }
+
     pub fn gen(
-        folders_number: u16,
+        folders_strategy: Strategy,
+        files_strategy: Strategy,
         deep: u8,
-        files_per_folder: usize,
         exts: &[&str],
     ) -> Result<Self, io::Error> {
         let now = Instant::now();
-        debug!("Start generiting use case: {folders_number} folders; deep = {deep}; {files_per_folder} files per folder; exts: {}", exts.join(", "));
+        debug!("Start generiting use case: {folders_strategy}; {files_strategy} per folder; exts: {}; deep = {deep};", exts.join(", "));
         let mut files = Vec::new();
         let mut fill = |parent: &PathBuf| -> Result<Vec<PathBuf>, io::Error> {
             let mut created = Vec::new();
-            for _ in 0..folders_number {
-                let folder = parent.join(Uuid::new_v4().to_string());
+            let mut folders_cursor = folders_strategy.get_cursor(parent);
+            for _ in 0..folders_strategy.count() {
+                let folder = folders_cursor.next();
                 create_dir(&folder)?;
-                let mut ext = 0;
-                for _ in 0..files_per_folder {
-                    if ext >= exts.len() {
-                        ext = 0;
-                    }
-                    let mut filename = folder.join(Uuid::new_v4().to_string());
-                    exts.get(ext).map(|ext| filename.set_extension(ext));
-                    ext += 1;
+                let mut files_cursor = files_strategy.get_cursor(&folder);
+                let mut ext = Extentions::from(exts);
+                for _ in 0..files_strategy.count() {
+                    let mut filename = files_cursor.next();
+                    ext.apply(&mut filename);
                     let mut file = OpenOptions::new()
                         .write(true)
                         .create(true)

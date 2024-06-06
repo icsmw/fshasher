@@ -5,7 +5,7 @@ use crate::*;
 
 #[test]
 fn correction() -> Result<(), error::E> {
-    let usecase = UseCase::gen(5, 3, 10, &["aaa", "bbb", "ccc"])?;
+    let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     let breaker = Breaker::new();
     let mut a = collector::collect(
         &None,
@@ -37,7 +37,7 @@ fn correction() -> Result<(), error::E> {
 
 #[test]
 fn stability() -> Result<(), error::E> {
-    let usecase = UseCase::gen(5, 3, 5, &["aaa", "bbb", "ccc"])?;
+    let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     let breaker = Breaker::new();
     for _ in 0..10 {
         let mut a = collector::collect(

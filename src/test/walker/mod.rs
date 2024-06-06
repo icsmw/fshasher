@@ -3,7 +3,7 @@ use crate::{error::E, hasher, reader, test::usecase::*, Entry, Options, Toleranc
 
 #[test]
 fn correction() -> Result<(), E> {
-    let usecase = UseCase::gen(5, 3, 10, &["aaa", "bbb", "ccc"])?;
+    let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     let mut walker_a = Options::new()
         .entry(Entry::from(&usecase.root)?)?
         .tolerance(Tolerance::LogErrors)
@@ -29,7 +29,7 @@ fn correction() -> Result<(), E> {
 
 #[test]
 fn stability() -> Result<(), E> {
-    let usecase = UseCase::gen(5, 3, 5, &["aaa", "bbb", "ccc"])?;
+    let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     for _ in 0..10 {
         let mut walker_a = Options::new()
             .entry(Entry::from(&usecase.root)?)?

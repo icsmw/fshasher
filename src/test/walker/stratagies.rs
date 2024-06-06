@@ -4,7 +4,7 @@ use crate::{
 
 #[test]
 fn buffer() -> Result<(), E> {
-    let usecase = UseCase::gen(5, 3, 10, &["ts", "js", "txt"])?;
+    let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     let mut walker_a = Options::new()
         .entry(Entry::from(&usecase.root)?)?
         .reading_strategy(ReadingStrategy::Buffer)?
@@ -31,7 +31,7 @@ fn buffer() -> Result<(), E> {
 
 #[test]
 fn complete() -> Result<(), E> {
-    let usecase = UseCase::gen(5, 3, 10, &["ts", "js", "txt"])?;
+    let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     let mut walker_a = Options::new()
         .entry(Entry::from(&usecase.root)?)?
         .reading_strategy(ReadingStrategy::Complete)?
@@ -58,7 +58,7 @@ fn complete() -> Result<(), E> {
 
 #[test]
 fn memory_mapped() -> Result<(), E> {
-    let usecase = UseCase::gen(5, 3, 10, &["ts", "js", "txt"])?;
+    let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     let mut walker_a = Options::new()
         .entry(Entry::from(&usecase.root)?)?
         .reading_strategy(ReadingStrategy::MemoryMapped)?
@@ -85,7 +85,7 @@ fn memory_mapped() -> Result<(), E> {
 
 #[test]
 fn scenario() -> Result<(), E> {
-    let usecase = UseCase::gen(5, 3, 10, &["ts", "js", "txt"])?;
+    let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     let mut walker_a = Options::new()
         .entry(Entry::from(&usecase.root)?)?
         .reading_strategy(ReadingStrategy::Scenario(vec![

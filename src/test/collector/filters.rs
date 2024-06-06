@@ -4,7 +4,7 @@ use walker::{Filter, FilterAccepted};
 
 #[test]
 fn filters() -> Result<(), error::E> {
-    let usecase = UseCase::gen(1, 1, 9, &["aaa", "bbb", "ccc"])?;
+    let usecase = UseCase::unnamed(1, 9, 1, &["aaa", "bbb", "ccc"])?;
     let aaa: FilterAccepted = Filter::Files("*.aaa").try_into().unwrap();
     usecase.files.iter().for_each(|p| {
         let ext = p.extension().unwrap().to_str().unwrap();
@@ -19,7 +19,7 @@ fn filters() -> Result<(), error::E> {
 }
 #[test]
 fn files_exclude() -> Result<(), error::E> {
-    let usecase = UseCase::gen(5, 3, 9, &["aaa", "bbb", "ccc"])?;
+    let usecase = UseCase::unnamed(5, 9, 3, &["aaa", "bbb", "ccc"])?;
     let breaker = Breaker::new();
     let mut entry = Entry::from(&usecase.root)?;
     let included: &[&str] = &["ccc"];
@@ -49,7 +49,7 @@ fn files_exclude() -> Result<(), error::E> {
 
 #[test]
 fn files_include() -> Result<(), error::E> {
-    let usecase = UseCase::gen(5, 3, 9, &["aaa", "bbb", "ccc"])?;
+    let usecase = UseCase::unnamed(5, 9, 3, &["aaa", "bbb", "ccc"])?;
     let breaker = Breaker::new();
     let mut entry = Entry::from(&usecase.root)?;
     let included: &[&str] = &["ccc"];
