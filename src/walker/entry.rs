@@ -41,18 +41,23 @@ pub enum FilterAccepted {
 }
 
 impl FilterAccepted {
-    pub fn filtered<P: AsRef<Path>>(&self, path: P) -> Option<bool> {
+    pub fn filtered<P: AsRef<Path>>(&self, full_path: P) -> Option<bool> {
+        let path = match self {
+            Self::Files(..) => Path::new(full_path.as_ref().file_name()?),
+            Self::Folders(..) => full_path.as_ref(),
+            Self::Common(..) => full_path.as_ref(),
+        };
         Some(
             match self {
                 Self::Files(p) => {
-                    if path.as_ref().is_file() {
+                    if full_path.as_ref().is_file() {
                         p
                     } else {
                         return None;
                     }
                 }
                 Self::Folders(p) => {
-                    if path.as_ref().is_dir() {
+                    if full_path.as_ref().is_dir() {
                         p
                     } else {
                         return None;
@@ -60,7 +65,7 @@ impl FilterAccepted {
                 }
                 Self::Common(p) => p,
             }
-            .matches_path(path.as_ref()),
+            .matches_path(path),
         )
     }
 }

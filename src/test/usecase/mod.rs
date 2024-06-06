@@ -28,6 +28,43 @@ impl UseCase {
         )
     }
 
+    pub fn folders(
+        folders: &[&str],
+        files: u16,
+        deep: u8,
+        exts: &[&str],
+    ) -> Result<Self, io::Error> {
+        Self::gen(
+            Strategy::Named(folders.iter().map(|s| s.to_string()).collect()),
+            Strategy::Number(files),
+            deep,
+            exts,
+        )
+    }
+
+    pub fn files(folders: u16, files: &[&str], deep: u8, exts: &[&str]) -> Result<Self, io::Error> {
+        Self::gen(
+            Strategy::Number(folders),
+            Strategy::Named(files.iter().map(|s| s.to_string()).collect()),
+            deep,
+            exts,
+        )
+    }
+
+    pub fn folders_and_files(
+        folders: &[&str],
+        files: &[&str],
+        deep: u8,
+        exts: &[&str],
+    ) -> Result<Self, io::Error> {
+        Self::gen(
+            Strategy::Named(folders.iter().map(|s| s.to_string()).collect()),
+            Strategy::Named(files.iter().map(|s| s.to_string()).collect()),
+            deep,
+            exts,
+        )
+    }
+
     pub fn gen(
         folders_strategy: Strategy,
         files_strategy: Strategy,

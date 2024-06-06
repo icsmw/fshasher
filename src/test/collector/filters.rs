@@ -1,4 +1,4 @@
-use crate::test::{usecase::*, utils::*};
+use crate::test::usecase::*;
 use crate::*;
 use walker::{Filter, FilterAccepted};
 
@@ -17,6 +17,7 @@ fn filters() -> Result<(), error::E> {
     usecase.clean()?;
     Ok(())
 }
+
 #[test]
 fn files_exclude() -> Result<(), error::E> {
     let usecase = UseCase::unnamed(5, 9, 3, &["aaa", "bbb", "ccc"])?;
@@ -73,6 +74,175 @@ fn files_include() -> Result<(), error::E> {
             true
         }
     }));
+    usecase.clean()?;
+    Ok(())
+}
+
+#[test]
+fn folders_exclude() -> Result<(), error::E> {
+    let usecase = UseCase::folders(
+        &[
+            "aaa",
+            "bbb",
+            "exclude_ccc",
+            "ddd_exclude",
+            "exclude",
+            "eee_exclude_eee",
+        ],
+        9,
+        3,
+        &["aaa", "bbb", "ccc"],
+    )?;
+    let breaker = Breaker::new();
+    let mut entry = Entry::from(&usecase.root)?;
+    entry
+        .exclude(Filter::Folders("*exclude*"))
+        .expect("filter is set");
+    let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
+    assert!(!a.0.is_empty());
+    assert!(!a.0.iter().any(|p| p.to_string_lossy().contains("exclude")));
+    usecase.clean()?;
+    Ok(())
+}
+
+#[test]
+fn folders_include() -> Result<(), error::E> {
+    let usecase = UseCase::folders(
+        &[
+            "aaa",
+            "bbb",
+            "include_ccc",
+            "ddd_include",
+            "include",
+            "eee_include_eee",
+        ],
+        9,
+        3,
+        &["aaa", "bbb", "ccc"],
+    )?;
+    let breaker = Breaker::new();
+    let mut entry = Entry::from(&usecase.root)?;
+    entry
+        .include(Filter::Folders("*include*"))
+        .expect("filter is set");
+    let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
+    assert!(!a.0.is_empty());
+    assert!(!a.0.iter().any(|p| !p.to_string_lossy().contains("include")));
+    usecase.clean()?;
+    Ok(())
+}
+
+#[test]
+fn folders_and_files() -> Result<(), error::E> {
+    let usecase = UseCase::folders_and_files(
+        &[
+            "aaa",
+            "bbb",
+            "exclude_ccc",
+            "ddd_exclude",
+            "exclude",
+            "eee_exclude_eee",
+        ],
+        &[
+            "aaa",
+            "bbb",
+            "include_ccc",
+            "ddd_include",
+            "include",
+            "eee_include_eee",
+        ],
+        3,
+        &["aaa", "bbb", "ccc"],
+    )?;
+    let breaker = Breaker::new();
+    let mut entry = Entry::from(&usecase.root)?;
+    entry
+        .exclude(Filter::Folders("*exclude*"))
+        .expect("filter is set");
+    entry
+        .include(Filter::Files("*include*"))
+        .expect("filter is set");
+    let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
+    assert!(!a.0.is_empty());
+    assert!(a
+        .0
+        .iter()
+        .any(|p| if p.to_string_lossy().contains("exclude") {
+            false
+        } else {
+            p.file_name().unwrap().to_string_lossy().contains("include")
+        }));
+    usecase.clean()?;
+    Ok(())
+}
+
+#[test]
+fn folders_and_files_common_exclude() -> Result<(), error::E> {
+    let usecase = UseCase::folders_and_files(
+        &[
+            "aaa",
+            "bbb",
+            "exclude_ccc",
+            "ddd_exclude",
+            "exclude",
+            "eee_exclude_eee",
+        ],
+        &[
+            "aaa",
+            "bbb",
+            "exclude_ccc",
+            "ddd_exclude",
+            "exclude",
+            "eee_exclude_eee",
+        ],
+        3,
+        &["aaa", "bbb", "ccc"],
+    )?;
+    let breaker = Breaker::new();
+    let mut entry = Entry::from(&usecase.root)?;
+    entry
+        .exclude(Filter::Common("*exclude*"))
+        .expect("filter is set");
+    let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
+    assert!(!a.0.is_empty());
+    assert!(!a
+        .0
+        .iter()
+        .any(|p| { p.to_string_lossy().contains("exclude") }));
+    usecase.clean()?;
+    Ok(())
+}
+
+#[test]
+fn folders_and_files_common_include() -> Result<(), error::E> {
+    let usecase = UseCase::folders_and_files(
+        &[
+            "aaa",
+            "bbb",
+            "include_ccc",
+            "ddd_include",
+            "include",
+            "eee_include_eee",
+        ],
+        &[
+            "aaa",
+            "bbb",
+            "include_ccc",
+            "ddd_include",
+            "include",
+            "eee_include_eee",
+        ],
+        3,
+        &["aaa", "bbb", "ccc"],
+    )?;
+    let breaker = Breaker::new();
+    let mut entry = Entry::from(&usecase.root)?;
+    entry
+        .include(Filter::Common("*include*"))
+        .expect("filter is set");
+    let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
+    assert!(!a.0.is_empty());
+    assert!(!a.0.iter().any(|p| !p.to_string_lossy().contains("include")));
     usecase.clean()?;
     Ok(())
 }
