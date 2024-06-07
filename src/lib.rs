@@ -12,4 +12,4 @@ pub use breaker::Breaker;
 pub use entry::{Entry, Filter};
 pub use hasher::Hasher;
 pub use reader::Reader;
-pub use walker::{Options, ReadingStrategy, Tolerance, Walker};
+pub use walker::{JobType, Options, ReadingStrategy, Tick, Tolerance, Walker};

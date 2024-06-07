@@ -1,7 +1,7 @@
 use std::thread;
 
 use crate::{
-    entry::Entry, error::E, hasher, reader, test::usecase::*, Options, ReadingStrategy, Tolerance,
+    error::E, hasher, reader, test::usecase::*, JobType, Options, ReadingStrategy, Tolerance,
 };
 
 #[test]
@@ -18,14 +18,24 @@ fn progress() -> Result<(), E> {
     let rx_progress = walker.progress().unwrap();
     let handle = thread::spawn(move || {
         let mut ticks: usize = 0;
+        let mut collecting = false;
+        let mut hashing = false;
         while let Ok(msg) = rx_progress.recv() {
             ticks += 1;
+            if matches!(msg.job, JobType::Collecting) {
+                collecting = true;
+            }
+            if matches!(msg.job, JobType::Hashing) {
+                hashing = true;
+            }
         }
-        ticks
+        (ticks, collecting, hashing)
     });
     walker.init()?.hash()?;
-    let ticks = handle.join().expect("progress thread is finished");
+    let (ticks, collecting, hashing) = handle.join().expect("progress thread is finished");
     assert!(ticks > 0);
+    assert!(collecting);
+    assert!(hashing);
     usecase.clean()?;
     Ok(())
 }
