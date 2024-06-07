@@ -52,6 +52,9 @@ pub fn collect(
         debug!("Created pool with {threads} workers for paths collecting");
         let mut pending: Option<Action> = None;
         let mut queue: isize = 0;
+        if breaker.is_aborded() {
+            return Err(E::Aborted);
+        }
         let result = 'listener: loop {
             let next = if let Some(next) = pending.take() {
                 next
@@ -60,6 +63,9 @@ pub fn collect(
             } else {
                 break 'listener Ok((collected, invalid));
             };
+            if breaker.is_aborded() {
+                break 'listener Err(E::Aborted);
+            }
             match next {
                 Action::Deligate(next) => {
                     queue += 1;
@@ -84,6 +90,7 @@ pub fn collect(
                     }
                 }
                 Action::Error(path, err) => {
+                    println!(">>>>>>>>>>>>>>>>>>>>> err: {err}");
                     match tolerance {
                         Tolerance::StopOnErrors => {
                             error!("entry: {}; error: {err}", path.display());
@@ -101,7 +108,11 @@ pub fn collect(
             }
         };
         workers.shutdown();
-        result
+        if breaker.is_aborded() {
+            Err(E::Aborted)
+        } else {
+            result
+        }
     });
     let (collected, ignored) = handle
         .join()

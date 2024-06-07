@@ -73,6 +73,7 @@ impl Worker {
                 let mut collected: Vec<PathBuf> = Vec::new();
                 for el in els.into_iter() {
                     if breaker.is_aborded() {
+                        let _ = response(Action::Processed(collected));
                         break 'outer;
                     }
                     let Ok(path) = el.map(|el| el.path()) else {
@@ -102,7 +103,7 @@ impl Worker {
                         }
                     }
                 }
-                if response(Action::Processed(collected)).is_err() || breaker.is_aborded() {
+                if response(Action::Processed(collected)).is_err() {
                     break 'outer;
                 }
             }

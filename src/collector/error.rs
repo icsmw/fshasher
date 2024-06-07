@@ -11,4 +11,6 @@ pub enum E {
     JoinError(String),
     #[error("Fail to get optimal threads number")]
     OptimalThreadsNumber,
+    #[error("Operation has been aborted")]
+    Aborted,
 }

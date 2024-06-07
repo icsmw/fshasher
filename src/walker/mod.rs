@@ -172,7 +172,9 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                     break 'outer;
                 };
                 if breaker.is_aborded() {
-                    break 'outer;
+                    println!(">>>>>>>>>>>>>>>>>>>>>>> ABORTED!");
+                    // TODO: this is wrong, we should down all threads before
+                    return Err(E::Aborted);
                 }
                 match next {
                     Action::Processed(mut processed) => {

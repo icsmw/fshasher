@@ -1,3 +1,4 @@
+mod cancellation;
 mod progress;
 mod stratagies;
 use crate::{entry::Entry, error::E, hasher, reader, test::usecase::*, Options, Tolerance};

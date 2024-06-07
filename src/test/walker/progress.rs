@@ -1,20 +1,14 @@
 use std::thread;
 
-use crate::{
-    error::E, hasher, reader, test::usecase::*, JobType, Options, ReadingStrategy, Tolerance,
-};
+use crate::{error::E, hasher, reader, test::usecase::*, JobType, Options};
 
 #[test]
 fn progress() -> Result<(), E> {
-    let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
-    let mut walker = Options::from(&usecase.root)?
-        .progress(10)
-        .reading_strategy(ReadingStrategy::Buffer)?
-        .tolerance(Tolerance::LogErrors)
-        .walker(
-            hasher::blake::Blake::new(),
-            reader::buffering::Buffering::default(),
-        )?;
+    let usecase = UseCase::unnamed(5, 10, 3, &[])?;
+    let mut walker = Options::from(&usecase.root)?.progress(10).walker(
+        hasher::blake::Blake::new(),
+        reader::buffering::Buffering::default(),
+    )?;
     let rx_progress = walker.progress().unwrap();
     let handle = thread::spawn(move || {
         let mut ticks: usize = 0;
