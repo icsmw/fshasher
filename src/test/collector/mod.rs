@@ -41,7 +41,7 @@ fn correction() -> Result<(), error::E> {
 }
 
 #[test]
-fn stability() -> Result<(), error::E> {
+fn stress() -> Result<(), error::E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     let breaker = Breaker::new();
     for _ in 0..STRESS_TEST_ITERATIONS_COUNT {
@@ -92,7 +92,7 @@ fn cancellation() -> Result<(), error::E> {
 }
 
 #[test]
-fn cancellation_stability() -> Result<(), error::E> {
+fn cancellation_stress() -> Result<(), error::E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     for _ in 0..STRESS_TEST_ITERATIONS_COUNT {
         let breaker = Breaker::new();
@@ -137,7 +137,7 @@ fn cancellation_during() -> Result<(), error::E> {
 }
 
 #[test]
-fn cancellation_during_stability() -> Result<(), error::E> {
+fn cancellation_during_stress() -> Result<(), error::E> {
     let usecase = UseCase::unnamed(5, 10, 3, &[])?;
     for _ in 0..STRESS_TEST_ITERATIONS_COUNT {
         let breaker = Breaker::new();
