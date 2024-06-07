@@ -1,6 +1,6 @@
 use super::{Entry, Filter, Progress, ProgressChannel, Walker, E};
 use crate::{Hasher, Reader};
-use std::{mem, ops::Range};
+use std::{mem, ops::Range, path::Path};
 
 #[derive(Debug, Clone)]
 pub enum Tolerance {
@@ -24,8 +24,6 @@ pub enum ReadingStrategy {
     Scenario(Vec<(Range<u64>, Box<ReadingStrategy>)>),
 }
 
-// TODO: combined strategy: set reader depending on file size [..1024 * 1024]: MemoryMapped; [1024 * 1024..]: Buffer
-
 #[derive(Default, Debug)]
 pub struct Options {
     pub(crate) tolerance: Tolerance,
@@ -46,6 +44,17 @@ impl Options {
             threads: None,
             reading_strategy: ReadingStrategy::default(),
         }
+    }
+
+    pub fn from<P: AsRef<Path>>(path: P) -> Result<Self, E> {
+        Ok(Self {
+            tolerance: Tolerance::LogErrors,
+            entries: vec![Entry::from(path)?],
+            global: Entry::default(),
+            progress: None,
+            threads: None,
+            reading_strategy: ReadingStrategy::default(),
+        })
     }
 
     pub fn reading_strategy(&mut self, reading_strategy: ReadingStrategy) -> Result<&mut Self, E> {
@@ -78,6 +87,11 @@ impl Options {
     pub fn tolerance(&mut self, tolerance: Tolerance) -> &mut Self {
         self.tolerance = tolerance;
         self
+    }
+
+    pub fn path<P: AsRef<Path>>(&mut self, path: P) -> Result<&mut Self, E> {
+        self.entries.push(Entry::from(path)?);
+        Ok(self)
     }
 
     pub fn entry(&mut self, entry: Entry) -> Result<&mut Self, E> {

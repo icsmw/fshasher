@@ -5,8 +5,7 @@ use crate::{
 #[test]
 fn buffer() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
-    let mut walker_a = Options::new()
-        .entry(Entry::from(&usecase.root)?)?
+    let mut walker_a = Options::from(&usecase.root)?
         .reading_strategy(ReadingStrategy::Buffer)?
         .tolerance(Tolerance::LogErrors)
         .walker(
@@ -14,8 +13,7 @@ fn buffer() -> Result<(), E> {
             reader::buffering::Buffering::default(),
         )?;
     let hash_a = walker_a.init()?.hash()?.to_vec();
-    let mut walker_b = Options::new()
-        .entry(Entry::from(&usecase.root)?)?
+    let mut walker_b = Options::from(&usecase.root)?
         .tolerance(Tolerance::LogErrors)
         .walker(
             hasher::blake::Blake::new(),
@@ -32,8 +30,7 @@ fn buffer() -> Result<(), E> {
 #[test]
 fn complete() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
-    let mut walker_a = Options::new()
-        .entry(Entry::from(&usecase.root)?)?
+    let mut walker_a = Options::from(&usecase.root)?
         .reading_strategy(ReadingStrategy::Complete)?
         .tolerance(Tolerance::LogErrors)
         .walker(
@@ -41,8 +38,7 @@ fn complete() -> Result<(), E> {
             reader::buffering::Buffering::default(),
         )?;
     let hash_a = walker_a.init()?.hash()?.to_vec();
-    let mut walker_b = Options::new()
-        .entry(Entry::from(&usecase.root)?)?
+    let mut walker_b = Options::from(&usecase.root)?
         .tolerance(Tolerance::LogErrors)
         .walker(
             hasher::blake::Blake::new(),
@@ -59,8 +55,7 @@ fn complete() -> Result<(), E> {
 #[test]
 fn memory_mapped() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
-    let mut walker_a = Options::new()
-        .entry(Entry::from(&usecase.root)?)?
+    let mut walker_a = Options::from(&usecase.root)?
         .reading_strategy(ReadingStrategy::MemoryMapped)?
         .tolerance(Tolerance::LogErrors)
         .walker(
@@ -68,8 +63,7 @@ fn memory_mapped() -> Result<(), E> {
             reader::mapping::Mapping::default(),
         )?;
     let hash_a = walker_a.init()?.hash()?.to_vec();
-    let mut walker_b = Options::new()
-        .entry(Entry::from(&usecase.root)?)?
+    let mut walker_b = Options::from(&usecase.root)?
         .tolerance(Tolerance::LogErrors)
         .walker(
             hasher::blake::Blake::new(),
@@ -86,8 +80,7 @@ fn memory_mapped() -> Result<(), E> {
 #[test]
 fn scenario() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
-    let mut walker_a = Options::new()
-        .entry(Entry::from(&usecase.root)?)?
+    let mut walker_a = Options::from(&usecase.root)?
         .reading_strategy(ReadingStrategy::Scenario(vec![
             (0..1024 * 1024, Box::new(ReadingStrategy::Complete)),
             (1024 * 1024..u64::MAX, Box::new(ReadingStrategy::Buffer)),
@@ -98,8 +91,7 @@ fn scenario() -> Result<(), E> {
             reader::mapping::Mapping::default(),
         )?;
     let hash_a = walker_a.init()?.hash()?.to_vec();
-    let mut walker_b = Options::new()
-        .entry(Entry::from(&usecase.root)?)?
+    let mut walker_b = Options::from(&usecase.root)?
         .tolerance(Tolerance::LogErrors)
         .walker(
             hasher::blake::Blake::new(),
