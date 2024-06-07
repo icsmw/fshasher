@@ -50,8 +50,8 @@ pub struct Walker<H: Hasher, R: Reader> {
 }
 
 impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
-    pub fn new(mut opt: Options, hasher: H, reader: R) -> Result<Self, E> {
-        let progress = opt.progress.take();
+    pub fn new(opt: Options, hasher: H, reader: R) -> Result<Self, E> {
+        let progress = opt.progress.map(Progress::channel);
         Ok(Self {
             opt: Some(opt),
             breaker: Breaker::new(),
@@ -222,6 +222,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
             .map_err(|e| E::JoinError(format!("{e:?}")))??;
         self.hashes = mem::take(&mut hashes);
         self.hash = Some(summary);
+        self.progress = opt.progress.map(Progress::channel);
         let hash = if let Some(ref hash) = self.hash {
             hash.hash()?
         } else {

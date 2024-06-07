@@ -1,4 +1,4 @@
-use super::{Entry, Filter, Progress, ProgressChannel, Walker, E};
+use super::{Entry, Filter, Walker, E};
 use crate::{Hasher, Reader};
 use std::{mem, ops::Range, path::Path};
 
@@ -29,7 +29,7 @@ pub struct Options {
     pub(crate) tolerance: Tolerance,
     pub(crate) entries: Vec<Entry>,
     pub(crate) global: Entry,
-    pub(crate) progress: Option<ProgressChannel>,
+    pub(crate) progress: Option<usize>,
     pub(crate) threads: Option<usize>,
     pub(crate) reading_strategy: ReadingStrategy,
 }
@@ -80,7 +80,7 @@ impl Options {
     }
 
     pub fn progress(&mut self, capacity: usize) -> &mut Self {
-        self.progress = Some(Progress::channel(capacity));
+        self.progress = Some(capacity);
         self
     }
 
