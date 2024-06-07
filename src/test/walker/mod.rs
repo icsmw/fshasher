@@ -3,6 +3,8 @@ mod progress;
 mod stratagies;
 use crate::{entry::Entry, error::E, hasher, reader, test::usecase::*, Options, Tolerance};
 
+const STRESS_TEST_ITERATIONS_COUNT: usize = 100;
+
 #[test]
 fn correction() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
@@ -32,7 +34,7 @@ fn correction() -> Result<(), E> {
 #[test]
 fn stability() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
-    for _ in 0..10 {
+    for _ in 0..STRESS_TEST_ITERATIONS_COUNT {
         let mut walker_a = Options::new()
             .entry(Entry::from(&usecase.root)?)?
             .tolerance(Tolerance::LogErrors)

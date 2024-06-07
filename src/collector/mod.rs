@@ -90,7 +90,6 @@ pub fn collect(
                     }
                 }
                 Action::Error(path, err) => {
-                    println!(">>>>>>>>>>>>>>>>>>>>> err: {err}");
                     match tolerance {
                         Tolerance::StopOnErrors => {
                             error!("entry: {}; error: {err}", path.display());

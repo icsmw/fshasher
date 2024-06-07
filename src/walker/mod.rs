@@ -103,6 +103,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
         self.hashes.len()
     }
 
+    //TODO: after hash() progress is reset
     pub fn progress(&mut self) -> Option<Receiver<Tick>> {
         self.progress.as_mut().and_then(|(_, rx)| rx.take())
     }
@@ -172,9 +173,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                     break 'outer;
                 };
                 if breaker.is_aborded() {
-                    println!(">>>>>>>>>>>>>>>>>>>>>>> ABORTED!");
-                    // TODO: this is wrong, we should down all threads before
-                    return Err(E::Aborted);
+                    break 'outer;
                 }
                 match next {
                     Action::Processed(mut processed) => {
@@ -212,13 +211,18 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                 }
             }
             workers.shutdown().wait();
-            hashes.sort_by(|(a, _), (b, _)| a.cmp(b));
-            for (_, hash) in hashes.iter() {
-                summary.absorb(hash.hash()?)?;
+            if breaker.is_aborded() {
+                Err(E::Aborted)
+            } else {
+                hashes.sort_by(|(a, _), (b, _)| a.cmp(b));
+                for (_, hash) in hashes.iter() {
+                    summary.absorb(hash.hash()?)?;
+                }
+                summary.finish()?;
+                Ok((summary, hashes))
             }
-            summary.finish()?;
-            Ok((summary, hashes))
         });
+        self.progress = opt.progress.map(Progress::channel);
         let (summary, mut hashes) = handle
             .join()
             .map_err(|e| E::JoinError(format!("{e:?}")))??;
@@ -246,7 +250,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
             pos: 0,
         }
     }
-
+    // TODO: reflect in documentation reset of breaker
     fn reset(&mut self) {
         self.paths = Vec::new();
         self.invalid = Vec::new();

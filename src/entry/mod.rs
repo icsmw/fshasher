@@ -65,13 +65,11 @@ impl Entry {
     pub fn filtered<P: AsRef<Path>>(&self, path: P) -> bool {
         if !self.patterns.is_empty() {
             return self.patterns.iter().any(|pattern| pattern.filtered(&path));
-        } else if self.exclude.iter().any(|filter| {
-            if let Some(v) = filter.filtered(&path) {
-                v
-            } else {
-                false
-            }
-        }) {
+        } else if self
+            .exclude
+            .iter()
+            .any(|filter| filter.filtered(&path).unwrap_or_default())
+        {
             return false;
         }
         if self.include.is_empty() {
