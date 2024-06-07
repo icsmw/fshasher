@@ -25,7 +25,7 @@ fn progress() -> Result<(), E> {
         }
         (ticks, collecting, hashing)
     });
-    walker.init()?.hash()?;
+    walker.collect()?.hash()?;
     let (ticks, collecting, hashing) = handle.join().expect("progress thread is finished");
     assert!(ticks > 0);
     assert!(collecting);

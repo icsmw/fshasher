@@ -1,6 +1,6 @@
 use std::thread;
 
-use crate::{error::E, hasher, reader, test::usecase::*, walker, JobType, Options};
+use crate::{error::E, hasher, reader, test::usecase::*, walker, Options};
 
 #[test]
 fn cancellation() -> Result<(), E> {
@@ -10,7 +10,7 @@ fn cancellation() -> Result<(), E> {
         reader::buffering::Buffering::default(),
     )?;
     let rx_progress = walker.progress().unwrap();
-    walker.init()?;
+    walker.collect()?;
     let breaker = walker.breaker();
     let handle = thread::spawn(move || {
         while let Ok(_msg) = rx_progress.recv() {

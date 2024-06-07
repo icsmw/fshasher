@@ -65,7 +65,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
         })
     }
 
-    pub fn init(&mut self) -> Result<&mut Self, E> {
+    pub fn collect(&mut self) -> Result<&mut Self, E> {
         let now = Instant::now();
         self.reset();
         let opt = self.opt.as_mut().ok_or(E::IsNotInited)?;

@@ -15,7 +15,7 @@ fn correction() -> Result<(), E> {
             hasher::blake::Blake::new(),
             reader::buffering::Buffering::default(),
         )?;
-    let hash_a = walker_a.init()?.hash()?.to_vec();
+    let hash_a = walker_a.collect()?.hash()?.to_vec();
     let mut walker_b = Options::new()
         .entry(Entry::from(&usecase.root)?)?
         .tolerance(Tolerance::LogErrors)
@@ -23,7 +23,7 @@ fn correction() -> Result<(), E> {
             hasher::blake::Blake::new(),
             reader::buffering::Buffering::default(),
         )?;
-    let hash_b = walker_b.init()?.hash()?.to_vec();
+    let hash_b = walker_b.collect()?.hash()?.to_vec();
     assert_eq!(walker_a.count(), usecase.files.len());
     assert_eq!(walker_b.count(), usecase.files.len());
     assert_eq!(hash_a, hash_b);
@@ -42,7 +42,7 @@ fn stability() -> Result<(), E> {
                 hasher::blake::Blake::new(),
                 reader::buffering::Buffering::default(),
             )?;
-        let hash_a = walker_a.init()?.hash()?.to_vec();
+        let hash_a = walker_a.collect()?.hash()?.to_vec();
         let mut walker_b = Options::new()
             .entry(Entry::from(&usecase.root)?)?
             .tolerance(Tolerance::LogErrors)
@@ -50,7 +50,7 @@ fn stability() -> Result<(), E> {
                 hasher::blake::Blake::new(),
                 reader::buffering::Buffering::default(),
             )?;
-        let hash_b = walker_b.init()?.hash()?.to_vec();
+        let hash_b = walker_b.collect()?.hash()?.to_vec();
         assert_eq!(walker_a.count(), usecase.files.len());
         assert_eq!(walker_b.count(), usecase.files.len());
         assert_eq!(hash_a, hash_b);
