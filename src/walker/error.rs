@@ -74,7 +74,11 @@ impl From<(String, PatternError)> for E {
 
 impl From<collector::E> for E {
     fn from(err: collector::E) -> Self {
-        E::CollectorError(err)
+        if matches!(err, collector::E::Aborted) {
+            E::Aborted
+        } else {
+            E::CollectorError(err)
+        }
     }
 }
 

@@ -21,7 +21,7 @@ pub use worker::Worker;
 pub enum Action {
     Deligate(PathBuf),
     Processed(Vec<PathBuf>),
-    Error(PathBuf, E),
+    Error(PathBuf, E, bool),
 }
 
 pub type CollectingResult = Result<(Vec<PathBuf>, Vec<PathBuf>), E>;
@@ -89,7 +89,10 @@ pub fn collect(
                         break 'listener Ok((collected, invalid));
                     }
                 }
-                Action::Error(path, err) => {
+                Action::Error(path, err, finished) => {
+                    if finished {
+                        queue -= 1;
+                    }
                     match tolerance {
                         Tolerance::StopOnErrors => {
                             error!("entry: {}; error: {err}", path.display());

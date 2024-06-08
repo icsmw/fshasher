@@ -8,6 +8,15 @@ pub struct Blake {
     hash: Option<Hash>,
 }
 
+impl Default for Blake {
+    fn default() -> Self {
+        Blake {
+            hasher: BlakeHasher::new(),
+            hash: None,
+        }
+    }
+}
+
 impl Blake {
     pub fn new() -> Self {
         Blake {

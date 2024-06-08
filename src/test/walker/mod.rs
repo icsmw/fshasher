@@ -94,7 +94,7 @@ fn changes_stress() -> Result<(), E> {
             .entry(Entry::from(&usecase.root)?)?
             .tolerance(Tolerance::LogErrors)
             .walker(
-                hasher::blake::Blake::new(),
+                hasher::blake::Blake::default(),
                 reader::buffering::Buffering::default(),
             )?;
         let hash_a = walker_a.collect()?.hash()?.to_vec();

@@ -15,6 +15,10 @@ impl Breaker {
         }
     }
 
+    pub(crate) fn reset(&mut self) {
+        self.state.store(false, Ordering::Relaxed)
+    }
+
     pub fn breaker(&self) -> impl Fn() {
         let signal = self.state.clone();
         move || signal.store(true, Ordering::Relaxed)

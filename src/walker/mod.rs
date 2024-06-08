@@ -25,34 +25,110 @@ use std::{
 };
 pub use worker::{Job, Worker};
 
+/// The default minimum number of paths that will be given to a hash worker to calculate hashes.
 const MIN_PATHS_PER_JOB: usize = 2;
+/// The default maximum number of paths that will be given to a hash worker to calculate hashes.
 const MAX_PATHS_PER_JOB: usize = 500;
 
+/// Message for communication between `Walker` and workers during hashing.
 pub enum Action<H: Hasher> {
+    /// Used by workers to report the results of hashing files to `Walker`.
     Processed(Vec<(PathBuf, HasherWrapper<H>)>),
+    /// Used by workers to notify `Walker` about the closing of a worker's thread.
     WorkerShutdownNotification,
+    /// Used by workers to report an error.
     Error(PathBuf, E),
 }
 
-type HashingResult<T> = Result<(HasherWrapper<T>, Vec<(PathBuf, HasherWrapper<T>)>), E>;
-
+/// `Walker` collects file paths according to a given pattern, then calculates the hash for each
+/// file and provides a combined hash for all files.
+///
+/// `Walker` collects file paths recursively, traversing all nested folders. If a symlink is
+/// encountered, `Walker` reads it and, if it is linked to a file, includes it. If the symlink
+/// leads to a folder, `Walker` reads this folder as nested. Other entities (except for files,
+/// folders, and symlinks) are ignored.
+///
+/// The operations of path collection and hashing are separated. Reading the folder and collecting
+/// paths is done using the `collect()` method; hashing is done with the `hash()` method. If
+/// `hash()` is called without a prior call to `collect()`, it will not result in an error but
+/// will return an empty hash.
+///
+/// The `progress()` method provides a `Receiver<Tick>` to track the progress of the operation.
+/// A repeated call to `hash()` will recreate the channel. Therefore, before calling `hash()`
+/// again, you need to get a new `Receiver<Tick>` using the `progress()` method.
+///
+/// Path collection and subsequent hashing are interruptible operations. To interrupt, you need to
+/// get a `Breaker` by calling the `breaker()` method. Interruption is done by calling the `abort()`
+/// method. The operation will be interrupted at the earliest possible time but not instantaneously.
+///
+/// In case of interruption, both the `collect()` and `hash()` methods will return an `E::Aborted`
+/// error.
+///
+/// The built-in interruption function can be used to implement timeout support.
+///
+/// When an instance of `E::Aborted` is dropped, the background threads are not stopped automatically.
+/// To stop all running background threads, you need to use `Breaker` and call `abort()`. Otherwise,
+/// there is a risk of resource leakage.
+///
+/// The most efficient way to create an instance of `Walker` is to use `Options`, which allows
+/// flexible configuration of `Walker`.
+///
+/// # Example
+///
+/// ```
+/// use fshasher::{Options, Entry, Tolerance, hasher, reader};
+/// use std::env::temp_dir;
+/// let mut walker = Options::new()
+///     .entry(Entry::from(temp_dir()).unwrap()).unwrap()
+///     .tolerance(Tolerance::LogErrors)
+///     .walker(
+///         hasher::blake::Blake::default(),
+///         reader::buffering::Buffering::default(),
+///     ).unwrap();
+/// println!("Hash of {}: {:?}", temp_dir().display(), walker.collect().unwrap().hash().unwrap())
+///
+/// ```
+///
 #[derive(Debug)]
 pub struct Walker<H: Hasher, R: Reader> {
+    /// Settings for the `Walker`
     opt: Option<Options>,
+    /// `Breaker` structure for interrupting the path collection and caching operation
     breaker: Breaker,
+    /// Paths collected during the recursive traversal of the paths specified in `Options` and
+    /// according to the patterns. This field is populated when `collect()` is called but is reset
+    /// when `hash()` is called.
     paths: Vec<PathBuf>,
+    /// Paths to files or folders whose reading attempt caused an error. This field is not populated
+    /// if the tolerance level is set to `Tolerance::StopOnErrors`.
     invalid: Vec<PathBuf>,
+    /// Collection of hashes for each file. Populated when `hash()` is called.
     hashes: Vec<(PathBuf, HasherWrapper<H>)>,
+    /// The resulting hash. Set when `hash()` is called.
     hash: Option<HasherWrapper<H>>,
+    /// An instance of the hasher for hashing each file
     hasher: HasherWrapper<H>,
+    /// An instance of the reader for reading each file
     reader: ReaderWrapper<R>,
+    /// An instance of the channel for tracking the progress of path collection and hashing.
     progress: Option<ProgressChannel>,
 }
 
 impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
-    pub fn new(opt: Options, hasher: H, reader: R) -> Result<Self, E> {
+    /// Creates a new instance of `Walker`.
+    ///
+    /// # Parameters
+    ///
+    /// - `opt`: An instance of `Options` containing the configuration for `Walker`.
+    /// - `hasher`: An instance of the hasher that will be used for hashing each found file.
+    /// - `reader`: An instance of the reader that will be used for reading each found file.
+    ///
+    /// # Returns
+    ///
+    /// - A new instance of `Walker`.
+    pub fn new(opt: Options, hasher: H, reader: R) -> Self {
         let progress = opt.progress.map(Progress::channel);
-        Ok(Self {
+        Self {
             opt: Some(opt),
             breaker: Breaker::new(),
             paths: Vec::new(),
@@ -62,9 +138,22 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
             hasher: HasherWrapper::new(hasher),
             reader: ReaderWrapper::new(reader),
             progress,
-        })
+        }
     }
 
+    /// Collects file paths and saves them in the `paths` field for further hashing.
+    ///
+    /// # Returns
+    ///
+    /// - A new instance of `Walker`.
+    ///
+    /// # Errors
+    ///
+    /// This method will return an error if the operation is interrupted. By default, `Walker` has
+    /// a tolerance level of `Tolerance::LogErrors`, which means that the collection process will
+    /// not stop on an IO error; instead, the problematic path will be ignored. To change this strategy,
+    /// set the tolerance level to `Tolerance::StopOnErrors`. With `Tolerance::StopOnErrors`, the `collect`
+    /// method will return an error for any IO error encountered.
     pub fn collect(&mut self) -> Result<&mut Self, E> {
         let now = Instant::now();
         self.reset();
@@ -91,23 +180,90 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
         Ok(self)
     }
 
+    /// Returns a `Breaker` which can be used to abort collecting and hashing operations.
+    /// Interruption is done by calling the `abort()` method. The operation will be interrupted
+    /// at the earliest possible time but not instantaneously.
+    ///
+    /// In case of interruption, both the `collect()` and `hash()` methods will return an `E::Aborted`
+    /// error.
+    ///
+    /// When an instance of `E::Aborted` is dropped, the background threads are not stopped automatically.
+    /// To stop all running background threads, you need to use `Breaker` and call `abort()`. Otherwise,
+    /// there is a risk of resource leakage.
+    ///
+    /// # Returns
+    ///
+    /// - A new instance of `Breaker`.
+    ///
+    /// # Example
+    /// ```
+    ///     use fshasher::{hasher, reader, walker::E, Entry, Options, Tolerance};
+    ///     use std::{env::temp_dir, thread};
+    ///     
+    ///     let mut walker = Options::new()
+    ///             .entry(Entry::from(temp_dir()).unwrap())
+    ///             .unwrap()
+    ///             .tolerance(Tolerance::LogErrors)
+    ///             .progress(10)
+    ///             .walker(
+    ///                 hasher::blake::Blake::default(),
+    ///                 reader::buffering::Buffering::default(),
+    ///             )
+    ///             .unwrap();
+    ///         let progress = walker.progress().unwrap();
+    ///         let breaker = walker.breaker();
+    ///         thread::spawn(move || {
+    ///             let _ = progress.recv();
+    ///             // Abort collecting as soon as it's started
+    ///             breaker.abort();
+    ///         });
+    ///         assert!(matches!(walker.collect().err().unwrap(), E::Aborted));
+    /// ```
     pub fn breaker(&self) -> Breaker {
         self.breaker.clone()
     }
 
+    /// Returns paths to files or folders whose reading attempt caused an error. This will always return
+    /// an empty list if the tolerance level is set to `Tolerance::StopOnErrors`.
+    ///
+    /// # Returns
+    ///
+    /// - A slice of `PathBuf` containing the paths to files or folders that caused errors.
     pub fn invalid(&self) -> &[PathBuf] {
         &self.invalid
     }
 
+    /// Returns the number of calculated hashes. This is equal to the number of accepted paths.
+    ///
+    /// # Returns
+    ///
+    /// - The number of calculated hashes.
     pub fn count(&self) -> usize {
         self.hashes.len()
     }
 
-    //TODO: after hash() progress is reset
+    /// Returns a channel for tracking the progress of collecting and hashing. A repeated call to `hash()`
+    /// will recreate the channel. Therefore, before calling `hash()` again, you need to get a new
+    /// `Receiver<Tick>` using the `progress()` method.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<Receiver<Tick>>`: A channel for tracking progress, or `None` if the channel is not available.
     pub fn progress(&mut self) -> Option<Receiver<Tick>> {
         self.progress.as_mut().and_then(|(_, rx)| rx.take())
     }
 
+    /// Calculates a common hash and returns it. `hash()` should always be used in pair with `collect()`,
+    /// because `collect()` gathers the paths to files that will be hashed.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<&[u8], E>`: A hash calculated based on the paths collected with the given patterns.
+    ///
+    /// # Errors
+    ///
+    /// This method is not sensitive to tolerance settings. This means any IO error or hashing error will cause
+    /// this method to return an error.
     pub fn hash(&mut self) -> Result<&[u8], E> {
         let now = Instant::now();
         if self.paths.is_empty() {
@@ -134,6 +290,9 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
         let total = paths.len();
         let paths_per_jobs =
             ((total as f64 * 0.05).ceil() as usize).clamp(MIN_PATHS_PER_JOB, MAX_PATHS_PER_JOB);
+
+        type HashingResult<T> = Result<(HasherWrapper<T>, Vec<(PathBuf, HasherWrapper<T>)>), E>;
+
         let handle: JoinHandle<HashingResult<H>> = thread::spawn(move || {
             let mut summary = hasher.setup()?;
             let mut next_job = || -> Result<Vec<Job<H, R>>, E> {
@@ -244,29 +403,48 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
         Ok(hash)
     }
 
+    /// Returns an iterator to iterate over the calculated hashes.
+    ///
+    /// # Returns
+    ///
+    /// - `WalkerIter<'_, H, R>`: An iterator to iterate over the calculated hashes.
     pub fn iter(&self) -> WalkerIter<'_, H, R> {
         WalkerIter {
             walker: self,
             pos: 0,
         }
     }
-    // TODO: reflect in documentation reset of breaker
+
+    /// This method is used each time before `collect()` is called. It resets the previous state to default.
     fn reset(&mut self) {
         self.paths = Vec::new();
         self.invalid = Vec::new();
         self.hash = None;
         self.hashes = Vec::new();
-        self.breaker = Breaker::new();
+        self.breaker.reset();
     }
 }
 
+/// An iterator over the calculated hashes in a `Walker`.
+///
+/// `WalkerIter` is used to iterate over the `(PathBuf, HasherWrapper<H>)` pairs that
+/// represent the paths and their corresponding hashes calculated by the `Walker`.
 pub struct WalkerIter<'a, H: Hasher, R: Reader> {
+    /// A reference to the `Walker` instance.
     walker: &'a Walker<H, R>,
+    /// The current position in the `hashes` vector.
     pos: usize,
 }
 
 impl<'a, H: Hasher, R: Reader> Iterator for WalkerIter<'a, H, R> {
     type Item = &'a (PathBuf, HasherWrapper<H>);
+
+    /// Advances the iterator and returns the next `(PathBuf, HasherWrapper<H>)` pair.
+    ///
+    /// # Returns
+    ///
+    /// - `Some(&(PathBuf, HasherWrapper<H>))` if there is another hash to return.
+    /// - `None` if there are no more hashes to return.
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos >= self.walker.hashes.len() {
             None
@@ -281,6 +459,11 @@ impl<'a, H: Hasher, R: Reader> IntoIterator for &'a Walker<H, R> {
     type Item = &'a (PathBuf, HasherWrapper<H>);
     type IntoIter = WalkerIter<'a, H, R>;
 
+    /// Creates an iterator over the calculated hashes in the `Walker`.
+    ///
+    /// # Returns
+    ///
+    /// - `WalkerIter<'a, H, R>`: An iterator to iterate over the calculated hashes.
     fn into_iter(self) -> Self::IntoIter {
         WalkerIter {
             walker: self,
@@ -288,121 +471,3 @@ impl<'a, H: Hasher, R: Reader> IntoIterator for &'a Walker<H, R> {
         }
     }
 }
-
-// #[cfg(test)]
-// mod test {
-//     use super::*;
-//     use crate::*;
-//     use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-//     use std::{ops::Range, thread};
-
-//     #[test]
-//     fn walk() {
-//         env_logger::init();
-//         let mut entry = Entry::new();
-//         entry.entry("/tmp").unwrap();
-//         let mut walker = Options::new()
-//             .entry(entry)
-//             .unwrap()
-//             .walker(
-//                 hasher::blake::Blake::new(),
-//                 reader::buffering::Buffering::default(),
-//             )
-//             .unwrap();
-//         walker.init().unwrap();
-//         let hash = walker.hash().unwrap();
-//         println!("{hash:?}");
-//     }
-
-//     #[test]
-//     fn progress() {
-//         env_logger::init();
-//         let mut entry = Entry::new();
-//         entry.entry("/storage/projects/private").unwrap();
-//         let mut walker = Options::new()
-//             .entry(entry)
-//             .unwrap()
-//             .progress(10)
-//             .reading_strategy(ReadingStrategy::Scenario(vec![
-//                 (0..1024 * 1024, Box::new(ReadingStrategy::Complete)),
-//                 (1024 * 1024..u64::MAX, Box::new(ReadingStrategy::Buffer)),
-//             ]))
-//             .unwrap()
-//             .walker(
-//                 hasher::blake::Blake::new(),
-//                 reader::buffering::Buffering::default(),
-//             )
-//             .unwrap();
-//         let progress = walker.progress().unwrap();
-//         let hashing = thread::spawn(move || {
-//             walker.init().unwrap();
-//             let hash = walker.hash().unwrap();
-//             println!("{hash:?}");
-//         });
-//         let tracking = thread::spawn(move || {
-//             let mp = MultiProgress::new();
-//             let spinner_style =
-//                 ProgressStyle::with_template("{spinner} {prefix:.bold.dim} {wide_msg}")
-//                     .unwrap()
-//                     .tick_chars("▂▃▅▆▇▆▅▃▂ ");
-//             let bar = mp.add(ProgressBar::new(u64::MAX));
-//             bar.set_style(spinner_style.clone());
-//             while let Ok(tick) = progress.recv() {
-//                 bar.set_message(tick.to_string());
-//                 bar.set_length(tick.total as u64);
-//                 bar.set_position(tick.done as u64);
-//             }
-//         });
-//         hashing.join().unwrap();
-//         tracking.join().unwrap();
-//     }
-
-//     #[test]
-//     fn aborting() {
-//         env_logger::init();
-//         let mut entry = Entry::new();
-//         entry.entry("/tmp").unwrap();
-//         let mut walker = Options::new()
-//             .entry(entry)
-//             .unwrap()
-//             .progress(10)
-//             .walker(
-//                 hasher::blake::Blake::new(),
-//                 reader::buffering::Buffering::default(),
-//             )
-//             .unwrap();
-//         let progress = walker.progress().unwrap();
-//         let breaker = walker.breaker();
-//         let hashing = thread::spawn(move || {
-//             walker.init().unwrap();
-//             match walker.hash() {
-//                 Err(E::Aborted) => {
-//                     println!("hashing has been aborted");
-//                 }
-//                 Err(e) => panic!("{e}"),
-//                 Ok(_) => panic!("hashing isn't aborted"),
-//             }
-//         });
-//         let tracking = thread::spawn(move || {
-//             let mp = MultiProgress::new();
-//             let spinner_style =
-//                 ProgressStyle::with_template("{spinner} {prefix:.bold.dim} {wide_msg}")
-//                     .unwrap()
-//                     .tick_chars("▂▃▅▆▇▆▅▃▂ ");
-//             let bar = mp.add(ProgressBar::new(u64::MAX));
-//             bar.set_style(spinner_style.clone());
-//             while let Ok(tick) = progress.recv() {
-//                 bar.set_message(tick.to_string());
-//                 bar.set_length(tick.total as u64);
-//                 bar.set_position(tick.done as u64);
-//                 if tick.total as f64 / tick.done as f64 <= 2.0 && !breaker.is_aborded() {
-//                     println!("Aborting on: {tick}");
-//                     breaker.abort();
-//                     break;
-//                 }
-//             }
-//         });
-//         hashing.join().unwrap();
-//         tracking.join().unwrap();
-//     }
-// }

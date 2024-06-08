@@ -1,4 +1,4 @@
-pub(crate) mod blake;
+pub mod blake;
 use crate::walker;
 use std::error;
 

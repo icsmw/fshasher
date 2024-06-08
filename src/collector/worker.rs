@@ -63,7 +63,7 @@ impl Worker {
                 let els = match read_dir(&path) {
                     Ok(els) => els,
                     Err(err) => {
-                        if response(Action::Error(path, err.into())).is_err() {
+                        if response(Action::Error(path, err.into(), true)).is_err() {
                             break 'outer;
                         } else {
                             continue;
@@ -91,15 +91,19 @@ impl Worker {
                         let path = match read_link(&path) {
                             Ok(path) => path,
                             Err(err) => {
-                                if response(Action::Error(path, err.into())).is_err() {
+                                if response(Action::Error(path, err.into(), false)).is_err() {
                                     break 'outer;
                                 } else {
                                     continue;
                                 }
                             }
                         };
-                        if check(path, &mut collected).is_err() {
-                            break 'outer;
+                        if path.is_file() || path.is_dir() {
+                            if check(path, &mut collected).is_err() {
+                                break 'outer;
+                            }
+                        } else {
+                            continue;
                         }
                     }
                 }

@@ -14,7 +14,6 @@ memmap2 = "0.9.4"
 thiserror = "1.0.61"
 
 [dev-dependencies]
-indicatif = "0.17.7"
 rand = "0.8.5"
 ctor = "0.2.8"
 

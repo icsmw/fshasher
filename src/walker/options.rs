@@ -117,7 +117,7 @@ impl Options {
         hasher: H,
         reader: R,
     ) -> Result<Walker<H, R>, E> {
-        Walker::new(
+        Ok(Walker::new(
             Options {
                 tolerance: mem::take(&mut self.tolerance),
                 global: mem::take(&mut self.global),
@@ -128,6 +128,6 @@ impl Options {
             },
             hasher,
             reader,
-        )
+        ))
     }
 }
