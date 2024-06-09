@@ -330,7 +330,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                 if jobs.is_empty() {
                     break;
                 }
-                worker.deligate(jobs);
+                worker.delegate(jobs);
             }
             let mut hashes = Vec::new();
             let mut waiting_for_shutdown = false;
@@ -343,7 +343,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                 } else {
                     break 'outer;
                 };
-                if breaker.is_aborded() {
+                if breaker.is_aborted() {
                     break 'outer;
                 }
                 match next {
@@ -371,18 +371,18 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                 if waiting_for_shutdown {
                     continue;
                 }
-                'deligate: for worker in workers.iter().filter(|w| w.is_free()) {
+                'delegate: for worker in workers.iter().filter(|w| w.is_free()) {
                     let jobs: Vec<(PathBuf, HasherWrapper<H>, ReaderWrapper<R>)> = next_job()?;
                     if jobs.is_empty() {
                         waiting_for_shutdown = true;
                         workers.shutdown();
-                        break 'deligate;
+                        break 'delegate;
                     }
-                    worker.deligate(jobs);
+                    worker.delegate(jobs);
                 }
             }
             workers.shutdown().wait();
-            if breaker.is_aborded() {
+            if breaker.is_aborted() {
                 Err(E::Aborted)
             } else {
                 hashes.sort_by(|(a, _), (b, _)| a.cmp(b));

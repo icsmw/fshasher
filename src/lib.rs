@@ -15,7 +15,7 @@ pub use collector::{collect, Tolerance};
 pub use entry::{Entry, Filter};
 pub use hasher::Hasher;
 pub use reader::Reader;
-pub use walker::{JobType, Options, ReadingStrategy, Tick, Walker};
+pub use walker::{JobType, Options, Progress, ReadingStrategy, Tick, Walker};
 
 // TODO:
 // - usecase when during collecting or hashing files are removed or created isn't covered

@@ -70,7 +70,7 @@ pub struct Progress {
 }
 
 impl Progress {
-    pub(crate) fn channel(capacity: usize) -> ProgressChannel {
+    pub fn channel(capacity: usize) -> ProgressChannel {
         let (tx, rx): (Tx, Receiver<Tick>) = if capacity == 0 {
             let (tx, rx) = channel();
             (Tx::Unbound(tx), rx)

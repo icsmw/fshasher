@@ -61,7 +61,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
                 };
                 let mut collected = Vec::new();
                 for (path, hasher, reader) in jobs.into_iter() {
-                    if breaker.is_aborded() {
+                    if breaker.is_aborted() {
                         break 'outer;
                     }
                     match hash_file(&path, hasher, reader, &reading_strategy, &breaker) {
@@ -99,7 +99,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
         self.available.load(Ordering::Relaxed)
     }
 
-    pub fn deligate(&self, jobs: Vec<Job<H, R>>) {
+    pub fn delegate(&self, jobs: Vec<Job<H, R>>) {
         *self.queue.write().unwrap() += 1;
         let _ = self.tx_task.send(Task::Hash(jobs));
     }
@@ -124,7 +124,7 @@ fn hash_file<H: Hasher, R: Reader>(
     reading_strategy: &ReadingStrategy,
     breaker: &Breaker,
 ) -> Result<HasherWrapper<H>, E> {
-    if breaker.is_aborded() {
+    if breaker.is_aborted() {
         return Err(E::Aborted);
     }
     let mut apply = |reading_strategy: &ReadingStrategy| {
@@ -132,7 +132,7 @@ fn hash_file<H: Hasher, R: Reader>(
             ReadingStrategy::Buffer => {
                 let mut buffer = [0u8; BUFFER_SIZE];
                 loop {
-                    if breaker.is_aborded() {
+                    if breaker.is_aborted() {
                         return Err(E::Aborted);
                     }
                     let bytes_read = reader.read(&mut buffer)?;

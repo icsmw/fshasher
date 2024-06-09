@@ -50,7 +50,7 @@ impl Worker {
                     collected.push(path);
                     Ok(())
                 } else if path.is_dir() {
-                    send(Action::Deligate(path))
+                    send(Action::Delegate(path))
                 } else {
                     unreachable!("Expecting only file or folder");
                 }
@@ -72,7 +72,7 @@ impl Worker {
                 };
                 let mut collected: Vec<PathBuf> = Vec::new();
                 for el in els.into_iter() {
-                    if breaker.is_aborded() {
+                    if breaker.is_aborted() {
                         let _ = response(Action::Processed(collected));
                         break 'outer;
                     }
@@ -130,7 +130,7 @@ impl Worker {
         self.available.load(Ordering::Relaxed)
     }
 
-    pub fn deligate(&self, path: PathBuf) {
+    pub fn delegate(&self, path: PathBuf) {
         *self.queue.write().unwrap() += 1;
         let _ = self.tx_task.send(Task::Read(path));
     }

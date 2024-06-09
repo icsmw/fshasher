@@ -24,7 +24,7 @@ impl Breaker {
         move || signal.store(true, Ordering::Relaxed)
     }
 
-    pub fn is_aborded(&self) -> bool {
+    pub fn is_aborted(&self) -> bool {
         self.state.load(Ordering::Relaxed)
     }
 
