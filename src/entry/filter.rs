@@ -2,14 +2,24 @@ pub use super::E;
 use glob::Pattern;
 use std::path::Path;
 
+/// With `Filter`, a glob pattern can be applied to a file's name or a folder's name only,
+/// whereas a regular glob pattern is applied to the full path. This allows for more accurate filtering.
 #[derive(Debug)]
 pub enum Filter<T: AsRef<str>> {
+    /// A glob pattern that will be applied to a folder's name only.
     Folders(T),
+    /// A glob pattern that will be applied to a file's name only.
     Files(T),
+    /// A glob pattern that will be applied to the full path (regular usage of glob patterns).
     Common(T),
 }
 
 impl<T: AsRef<str>> Filter<T> {
+    /// Returns the glob pattern as a string slice.
+    ///
+    /// # Returns
+    ///
+    /// - `&str`: The glob pattern as a string slice.
     pub fn as_str(&self) -> &str {
         match self {
             Self::Files(s) => s.as_ref(),
@@ -22,6 +32,11 @@ impl<T: AsRef<str>> Filter<T> {
 impl<T: AsRef<str>> TryInto<FilterAccepted> for Filter<T> {
     type Error = E;
 
+    /// Converts the `Filter` into a `FilterAccepted`.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<FilterAccepted, Self::Error>`: A `FilterAccepted` instance or an error if the pattern is invalid.
     fn try_into(self) -> Result<FilterAccepted, Self::Error> {
         let pattern =
             Pattern::new(self.as_str()).map_err(|err| (self.as_str().to_string(), err))?;
@@ -33,14 +48,28 @@ impl<T: AsRef<str>> TryInto<FilterAccepted> for Filter<T> {
     }
 }
 
+/// Represents an accepted filter with a compiled glob pattern.
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum FilterAccepted {
+    /// A compiled glob pattern applied to folder names.
     Folders(Pattern),
+    /// A compiled glob pattern applied to file names.
     Files(Pattern),
+    /// A compiled glob pattern applied to the full path.
     Common(Pattern),
 }
 
 impl FilterAccepted {
+    /// Filters a given path based on the compiled glob pattern.
+    ///
+    /// # Parameters
+    ///
+    /// - `full_path`: The path to be filtered.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<bool>`: `Some(true)` if the path matches the pattern, `Some(false)` if it doesn't,
+    ///   or `None` if the path type does not match the filter (e.g., a file filter applied to a directory).
     pub fn filtered<P: AsRef<Path>>(&self, full_path: P) -> Option<bool> {
         let path = match self {
             Self::Files(..) => Path::new(full_path.as_ref().file_name()?),

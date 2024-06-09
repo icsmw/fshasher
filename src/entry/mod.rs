@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 ///
 /// `Filter::Files("*key_word_in_file_name*")` will be applied to each found file name.
 /// `Filter::Folders("*key_word_in_folder_name*")` will be applied to each found folder name.
-/// `Filter::Common("*key_word*")` will apply the filter to any target.
+/// `Filter::Common("*key_word*")` will apply the filter to any target to full path.
 ///
 /// Excluding filters have higher priority than including filters. If a target matches an excluding filter, the target
 /// will be ignored even if it matches an including filter.
