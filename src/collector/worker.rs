@@ -13,11 +13,22 @@ use std::{
     thread::{self, JoinHandle},
 };
 
+/// Enum represents a list of messages for communication between the `collect()` function and `Worker`.
 enum Task {
+    /// Task to read a folder and collect paths to files.
     Read(PathBuf),
+    /// Breaking the listening loop of the `Worker` to free resources and close opened channels. Once `Shutdown`
+    /// has been called, the `Worker` cannot be reused.
     Shutdown,
 }
 
+/// `Worker` is used by the `collect()` function for collecting paths to files. `Worker` creates one thread and
+/// listens for incoming messages (tasks). `Worker` does not read nested folders; as soon as `Worker` encounters a
+/// folder, it sends the path back to `collect()` for further assignment to another worker in the queue.
+///
+/// Error handling: `Worker` doesn't stop the listener loop on IO errors. This is the responsibility of the `collect()`
+/// function. Any IO errors will be reported to the `collect()` function, which will make a decision based on the level
+/// of tolerance.
 pub struct Worker {
     tx_task: Sender<Task>,
     queue: Arc<RwLock<usize>>,
@@ -26,6 +37,17 @@ pub struct Worker {
 }
 
 impl Worker {
+    /// Runs a new `Worker` instance.
+    ///
+    /// # Parameters
+    ///
+    /// - `entry`: The entry point for collecting file paths.
+    /// - `tx_queue`: The sender channel for sending actions to `collect()` function.
+    /// - `breaker`: The breaker to handle interruptions.
+    ///
+    /// # Returns
+    ///
+    /// - A new `Worker` instance.
     pub fn run(entry: Entry, tx_queue: Sender<Action>, breaker: Breaker) -> Self {
         let (tx_task, rx_task): (Sender<Task>, Receiver<Task>) = channel();
         let queue = Arc::new(RwLock::new(0));
@@ -36,7 +58,7 @@ impl Worker {
             let send = |action: Action| {
                 tx_queue.send(action).map_err(|err| {
                     error!(
-                        "Worker cannot comunicate with pool. Channel error. Worker will be closed"
+                        "Worker cannot communicate with pool. Channel error. Worker will be closed"
                     );
                     err
                 })
@@ -112,7 +134,7 @@ impl Worker {
                 }
             }
             available_inner.store(false, Ordering::Relaxed);
-            debug!("Paths collector worker has been shutdown");
+            debug!("Paths collector worker has been shut down");
         });
         Self {
             tx_task,
@@ -122,19 +144,35 @@ impl Worker {
         }
     }
 
+    /// Returns the number of tasks in the worker's queue.
+    ///
+    /// # Returns
+    ///
+    /// - `usize`: The number of tasks in the queue.
     pub fn count(&self) -> usize {
         *self.queue.read().unwrap()
     }
 
+    /// Checks if the worker is available to take new tasks.
+    ///
+    /// # Returns
+    ///
+    /// - `bool`: `true` if the worker is available, `false` otherwise.
     pub fn is_available(&self) -> bool {
         self.available.load(Ordering::Relaxed)
     }
 
+    /// Delegates a task to read a path to the worker.
+    ///
+    /// # Parameters
+    ///
+    /// - `path`: The path to be read by the worker.
     pub fn delegate(&self, path: PathBuf) {
         *self.queue.write().unwrap() += 1;
         let _ = self.tx_task.send(Task::Read(path));
     }
 
+    /// Send command to `Worker` to exit from a listener loop as soon as possible
     pub fn shutdown(&mut self) {
         if let Some(handle) = self.handle.take() {
             let _ = self.tx_task.send(Task::Shutdown);
