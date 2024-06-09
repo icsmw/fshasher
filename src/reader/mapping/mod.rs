@@ -18,7 +18,7 @@ pub struct Mapping {
 
 impl Reader for Mapping {
     type Error = E;
-    fn setup<P: AsRef<Path>>(&self, path: P) -> Result<Self, E>
+    fn bind<P: AsRef<Path>>(&self, path: P) -> Result<Self, E>
     where
         Self: Sized,
     {

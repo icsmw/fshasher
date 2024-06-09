@@ -319,7 +319,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                 };
                 let mut jobs = Vec::new();
                 for p in paths.drain(end..).collect::<Vec<PathBuf>>().into_iter() {
-                    let r = reader.setup(&p)?;
+                    let r = reader.bind(&p)?;
                     let h = hasher.setup()?;
                     jobs.push((p, h, r));
                 }

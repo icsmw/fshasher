@@ -45,10 +45,6 @@ impl Hasher for Blake {
         self.hash = Some(self.hasher.finalize());
         Ok(())
     }
-    fn reset(&mut self) -> Result<(), E> {
-        self.hasher.reset();
-        Ok(())
-    }
     fn clone(&self) -> Self {
         Self::new()
     }
