@@ -1,7 +1,9 @@
 mod cancellation;
 mod progress;
 mod stratagies;
-use crate::{entry::Entry, error::E, hasher, reader, test::usecase::*, Options, Tolerance};
+use crate::{
+    collector::Tolerance, entry::Entry, error::E, hasher, reader, test::usecase::*, Options,
+};
 
 const STRESS_TEST_ITERATIONS_COUNT: usize = 100;
 

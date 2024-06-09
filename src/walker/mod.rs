@@ -13,7 +13,7 @@ use crate::{
 };
 pub use error::E;
 use log::debug;
-pub use options::{Options, ReadingStrategy, Tolerance};
+pub use options::{Options, ReadingStrategy};
 use pool::Pool;
 pub use progress::{JobType, Progress, ProgressChannel, Tick};
 use std::{
@@ -33,10 +33,22 @@ const MAX_PATHS_PER_JOB: usize = 500;
 /// Message for communication between `Walker` and workers during hashing.
 pub enum Action<H: Hasher> {
     /// Used by workers to report the results of hashing files to `Walker`.
+    ///
+    /// # Parameters
+    ///
+    /// - `Vec<(PathBuf, HasherWrapper<H>)>`: A vector of tuples where each tuple contains
+    ///   a file path and its corresponding hash.
     Processed(Vec<(PathBuf, HasherWrapper<H>)>),
+
     /// Used by workers to notify `Walker` about the closing of a worker's thread.
     WorkerShutdownNotification,
+
     /// Used by workers to report an error.
+    ///
+    /// # Parameters
+    ///
+    /// - `PathBuf`: The path to the file that caused the error.
+    /// - `E`: The error encountered during processing.
     Error(PathBuf, E),
 }
 

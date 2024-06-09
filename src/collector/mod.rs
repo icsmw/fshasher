@@ -1,11 +1,11 @@
-mod error;
+pub mod error;
 mod pool;
 mod worker;
 
 use crate::{
     breaker::Breaker,
     entry::Entry,
-    walker::{JobType, Progress, Tolerance},
+    walker::{JobType, Progress},
 };
 pub use error::E;
 use log::{debug, error, warn};
@@ -17,6 +17,20 @@ use std::{
     time::Instant,
 };
 pub use worker::Worker;
+
+/// Defines
+#[derive(Debug, Clone)]
+pub enum Tolerance {
+    LogErrors,
+    DoNotLogErrors,
+    StopOnErrors,
+}
+
+impl Default for Tolerance {
+    fn default() -> Self {
+        Self::LogErrors
+    }
+}
 
 pub enum Action {
     Deligate(PathBuf),

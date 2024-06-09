@@ -54,7 +54,7 @@ pub enum E {
     )]
     InvalidRangesForScenarioStrategy(u64),
     #[error("Nested ReadingStrategy::Scenario isn't allowed")]
-    NestedtedScenarioStrategy,
+    NestedScenarioStrategy,
 }
 
 impl E {

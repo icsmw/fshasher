@@ -1,5 +1,5 @@
 use crate::{
-    entry::Entry, error::E, hasher, reader, test::usecase::*, Options, ReadingStrategy, Tolerance,
+    collector::Tolerance, error::E, hasher, reader, test::usecase::*, Options, ReadingStrategy,
 };
 
 #[test]

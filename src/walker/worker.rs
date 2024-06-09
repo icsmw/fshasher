@@ -151,7 +151,7 @@ fn hash_file<H: Hasher, R: Reader>(
                 hasher.absorb(reader.mmap()?)?;
             }
             ReadingStrategy::Scenario(..) => {
-                return Err(E::NestedtedScenarioStrategy);
+                return Err(E::NestedScenarioStrategy);
             }
         };
         Ok(())
