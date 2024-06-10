@@ -23,18 +23,25 @@ pub enum ReadingStrategy {
 /// Configuration options for the `Walker`.
 #[derive(Default, Debug)]
 pub struct Options {
-    /// Tolerance level for error handling. The level of tolerance is used only in the scope of collecting files.
-    /// Hashing is not sensitive to the tolerance level.
+    /// Tolerance level for error handling. The level of tolerance is used in the scope of collecting files
+    /// and hashing files. In case of collecting, IO errors could be ignored (for example, errors related to
+    /// permission issues); in case of hashing, hasher's and reader's errors could be ignored (for example, if
+    /// a file doesn't exist anymore).
     pub tolerance: Tolerance,
+
     /// List of entries (paths) to be processed.
     pub entries: Vec<Entry>,
+
     /// Global entry settings that apply to all entries.
     pub global: Entry,
+
     /// Optional capacity for progress tracking. Recommended capacity is 10.
     pub progress: Option<usize>,
+
     /// Optional number of threads to use for processing. If this setting is not set, the number of threads
     /// will default to the number of available cores.
     pub threads: Option<usize>,
+
     /// Strategy for reading files.
     pub reading_strategy: ReadingStrategy,
 }

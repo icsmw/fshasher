@@ -183,6 +183,9 @@ fn hash_file<H: Hasher, R: Reader>(
     if breaker.is_aborted() {
         return Err(E::Aborted);
     }
+    if !path.exists() {
+        return Err(E::FileDoesNotExists(path.to_path_buf()));
+    }
     let mut apply = |reading_strategy: &ReadingStrategy| {
         match reading_strategy {
             ReadingStrategy::Buffer => {

@@ -9,10 +9,10 @@ use crate::{
     entry::{Entry, Filter},
     hasher::HasherWrapper,
     reader::ReaderWrapper,
-    Breaker, Hasher, Reader,
+    Breaker, Hasher, Reader, Tolerance,
 };
 pub use error::E;
-use log::debug;
+use log::{debug, error, warn};
 pub use options::{Options, ReadingStrategy};
 use pool::Pool;
 pub use progress::{JobType, Progress, ProgressChannel, Tick};
@@ -51,7 +51,6 @@ pub enum Action<H: Hasher> {
     /// - `E`: The error encountered during processing.
     Error(PathBuf, E),
 }
-
 /// `Walker` collects file paths according to a given pattern, then calculates the hash for each
 /// file and provides a combined hash for all files.
 ///
@@ -98,14 +97,13 @@ pub enum Action<H: Hasher> {
 ///         reader::buffering::Buffering::default(),
 ///     ).unwrap();
 /// println!("Hash of {}: {:?}", temp_dir().display(), walker.collect().unwrap().hash().unwrap())
-///
 /// ```
 ///
 #[derive(Debug)]
 pub struct Walker<H: Hasher, R: Reader> {
-    /// Settings for the `Walker`
+    /// Settings for the `Walker`.
     opt: Option<Options>,
-    /// `Breaker` structure for interrupting the path collection and caching operation
+    /// `Breaker` structure for interrupting the path collection and hashing operations.
     breaker: Breaker,
     /// Paths collected during the recursive traversal of the paths specified in `Options` and
     /// according to the patterns. This field is populated when `collect()` is called but is reset
@@ -118,9 +116,9 @@ pub struct Walker<H: Hasher, R: Reader> {
     hashes: Vec<(PathBuf, HasherWrapper<H>)>,
     /// The resulting hash. Set when `hash()` is called.
     hash: Option<HasherWrapper<H>>,
-    /// An instance of the hasher for hashing each file
+    /// An instance of the hasher for hashing each file.
     hasher: HasherWrapper<H>,
-    /// An instance of the reader for reading each file
+    /// An instance of the reader for reading each file.
     reader: ReaderWrapper<R>,
     /// An instance of the channel for tracking the progress of path collection and hashing.
     progress: Option<ProgressChannel>,
@@ -208,28 +206,29 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
     /// - A new instance of `Breaker`.
     ///
     /// # Example
+    ///
     /// ```
-    ///     use fshasher::{hasher, reader, walker::E, Entry, Options, Tolerance};
-    ///     use std::{env::temp_dir, thread};
-    ///     
-    ///     let mut walker = Options::new()
-    ///             .entry(Entry::from(temp_dir()).unwrap())
-    ///             .unwrap()
-    ///             .tolerance(Tolerance::LogErrors)
-    ///             .progress(10)
-    ///             .walker(
-    ///                 hasher::blake::Blake::default(),
-    ///                 reader::buffering::Buffering::default(),
-    ///             )
-    ///             .unwrap();
-    ///         let progress = walker.progress().unwrap();
-    ///         let breaker = walker.breaker();
-    ///         thread::spawn(move || {
-    ///             let _ = progress.recv();
-    ///             // Abort collecting as soon as it's started
-    ///             breaker.abort();
-    ///         });
-    ///         assert!(matches!(walker.collect().err().unwrap(), E::Aborted));
+    /// use fshasher::{hasher, reader, walker::E, Entry, Options, Tolerance};
+    /// use std::{env::temp_dir, thread};
+    ///
+    /// let mut walker = Options::new()
+    ///     .entry(Entry::from(temp_dir()).unwrap())
+    ///     .unwrap()
+    ///     .tolerance(Tolerance::LogErrors)
+    ///     .progress(10)
+    ///     .walker(
+    ///         hasher::blake::Blake::default(),
+    ///         reader::buffering::Buffering::default(),
+    ///     )
+    ///     .unwrap();
+    /// let progress = walker.progress().unwrap();
+    /// let breaker = walker.breaker();
+    /// thread::spawn(move || {
+    ///     let _ = progress.recv();
+    ///     // Abort collecting as soon as it's started
+    ///     breaker.abort();
+    /// });
+    /// assert!(matches!(walker.collect().err().unwrap(), E::Aborted));
     /// ```
     pub fn breaker(&self) -> Breaker {
         self.breaker.clone()
@@ -274,14 +273,20 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
     ///
     /// # Errors
     ///
-    /// This method is not sensitive to tolerance settings. This means any IO error or hashing error will cause
-    /// this method to return an error.
+    /// This method, like `collect()`, is sensitive to tolerance settings. By default, `Walker` has
+    /// a tolerance level of `Tolerance::LogErrors`, which means that the hashing process will
+    /// not stop on an IO error (caused by hasher or reader); instead, the problematic path will be ignored.
+    /// To change this strategy, set the tolerance level to `Tolerance::StopOnErrors`. With
+    /// `Tolerance::StopOnErrors`, the `hash()` method will return an error for any IO error encountered.
+    ///
+    /// All ignored paths will be saved into the `invalid` field.
     pub fn hash(&mut self) -> Result<&[u8], E> {
         let now = Instant::now();
         if self.paths.is_empty() {
             return Ok(&[]);
         }
         let opt = self.opt.as_mut().ok_or(E::IsNotInited)?;
+        let tolerance = opt.tolerance.clone();
         let (tx_queue, rx_queue): (Sender<Action<H>>, Receiver<Action<H>>) = channel();
         let progress = self.progress.as_ref().map(|(progress, _)| progress.clone());
         let breaker = self.breaker.clone();
@@ -303,11 +308,45 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
         let paths_per_jobs =
             ((total as f64 * 0.05).ceil() as usize).clamp(MIN_PATHS_PER_JOB, MAX_PATHS_PER_JOB);
 
-        type HashingResult<T> = Result<(HasherWrapper<T>, Vec<(PathBuf, HasherWrapper<T>)>), E>;
-
+        type HashingResult<T> = Result<
+            (
+                HasherWrapper<T>,
+                Vec<(PathBuf, HasherWrapper<T>)>,
+                Vec<PathBuf>,
+            ),
+            E,
+        >;
         let handle: JoinHandle<HashingResult<H>> = thread::spawn(move || {
-            let mut summary = hasher.setup()?;
-            let mut next_job = || -> Result<Vec<Job<H, R>>, E> {
+            fn check_err(
+                path: PathBuf,
+                err: E,
+                tolerance: &Tolerance,
+                invalid: &mut Vec<PathBuf>,
+            ) -> Option<E> {
+                match tolerance {
+                    Tolerance::StopOnErrors => {
+                        error!("entry: {}; error: {err}", path.display());
+                        Some(E::Bound(path, Box::new(err)))
+                    }
+                    Tolerance::LogErrors => {
+                        warn!("entry: {}; error: {err}", path.display());
+                        invalid.push(path);
+                        None
+                    }
+                    Tolerance::DoNotLogErrors => {
+                        invalid.push(path);
+                        None
+                    }
+                }
+            }
+            fn get_next_job<H: Hasher, R: Reader>(
+                paths: &mut Vec<PathBuf>,
+                paths_per_jobs: usize,
+                reader: &ReaderWrapper<R>,
+                hasher: &HasherWrapper<H>,
+                tolerance: &Tolerance,
+                invalid: &mut Vec<PathBuf>,
+            ) -> Result<Vec<Job<H, R>>, E> {
                 if paths.is_empty() {
                     return Ok(Vec::new());
                 }
@@ -318,15 +357,44 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                     len - paths_per_jobs
                 };
                 let mut jobs = Vec::new();
-                for p in paths.drain(end..).collect::<Vec<PathBuf>>().into_iter() {
-                    let r = reader.bind(&p)?;
-                    let h = hasher.setup()?;
-                    jobs.push((p, h, r));
+                while jobs.is_empty() && !paths.is_empty() {
+                    for p in paths.drain(end..).collect::<Vec<PathBuf>>().into_iter() {
+                        let r = match reader.bind(&p) {
+                            Ok(r) => r,
+                            Err(err) => {
+                                if let Some(err) = check_err(p, err, tolerance, invalid) {
+                                    return Err(err);
+                                } else {
+                                    continue;
+                                }
+                            }
+                        };
+                        let h = match hasher.setup() {
+                            Ok(r) => r,
+                            Err(err) => {
+                                if let Some(err) = check_err(p, err, tolerance, invalid) {
+                                    return Err(err);
+                                } else {
+                                    continue;
+                                }
+                            }
+                        };
+                        jobs.push((p, h, r));
+                    }
                 }
                 Ok(jobs)
-            };
+            }
+            let mut summary = hasher.setup()?;
+            let mut invalid: Vec<PathBuf> = Vec::new();
             for worker in workers.iter() {
-                let jobs: Vec<(PathBuf, HasherWrapper<H>, ReaderWrapper<R>)> = next_job()?;
+                let jobs: Vec<(PathBuf, HasherWrapper<H>, ReaderWrapper<R>)> = get_next_job(
+                    &mut paths,
+                    paths_per_jobs,
+                    &reader,
+                    &hasher,
+                    &tolerance,
+                    &mut invalid,
+                )?;
                 if jobs.is_empty() {
                     break;
                 }
@@ -364,15 +432,25 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                         }
                     }
                     Action::Error(path, err) => {
-                        workers.shutdown().wait();
-                        return Err(E::Bound(path, Box::new(err)));
+                        let mut err: Option<E> = check_err(path, err, &tolerance, &mut invalid);
+                        if let Some(err) = err.take() {
+                            workers.shutdown().wait();
+                            return Err(err);
+                        }
                     }
                 }
                 if waiting_for_shutdown {
                     continue;
                 }
                 'delegate: for worker in workers.iter().filter(|w| w.is_free()) {
-                    let jobs: Vec<(PathBuf, HasherWrapper<H>, ReaderWrapper<R>)> = next_job()?;
+                    let jobs: Vec<(PathBuf, HasherWrapper<H>, ReaderWrapper<R>)> = get_next_job(
+                        &mut paths,
+                        paths_per_jobs,
+                        &reader,
+                        &hasher,
+                        &tolerance,
+                        &mut invalid,
+                    )?;
                     if jobs.is_empty() {
                         waiting_for_shutdown = true;
                         workers.shutdown();
@@ -390,15 +468,16 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                     summary.absorb(hash.hash()?)?;
                 }
                 summary.finish()?;
-                Ok((summary, hashes))
+                Ok((summary, hashes, invalid))
             }
         });
         self.progress = opt.progress.map(Progress::channel);
-        let (summary, mut hashes) = handle
+        let (summary, mut hashes, mut invalid) = handle
             .join()
             .map_err(|e| E::JoinError(format!("{e:?}")))??;
         self.hashes = mem::take(&mut hashes);
         self.hash = Some(summary);
+        self.invalid.append(&mut invalid);
         self.progress = opt.progress.map(Progress::channel);
         let hash = if let Some(ref hash) = self.hash {
             hash.hash()?

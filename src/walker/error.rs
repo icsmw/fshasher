@@ -23,6 +23,8 @@ pub enum E {
     AbsolutePathRequired(PathBuf),
     #[error("Operation has been aborted")]
     Aborted,
+    #[error("File doesn't exist: {0}")]
+    FileDoesNotExists(PathBuf),
     #[error("Walker isn't inited")]
     IsNotInited,
     #[error("Reader error: {0}")]
