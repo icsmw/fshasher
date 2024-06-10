@@ -1,6 +1,9 @@
 use super::{Entry, Filter, Walker, E};
 use crate::{collector::Tolerance, Hasher, Reader};
-use std::{mem, ops::Range, path::Path};
+use std::{mem, ops::Range, path::Path, thread};
+
+pub(crate) const MIN_THREADS_COUNT: usize = 1;
+pub(crate) const MAX_THREADS_MLT_TO_CORES: usize = 2;
 
 /// Defines the reader's strategy.
 #[derive(Debug, Clone, Default)]
@@ -118,9 +121,17 @@ impl Options {
     /// # Returns
     ///
     /// - A mutable reference to the modified `Options` instance.
-    pub fn threads(&mut self, threads: usize) -> &mut Self {
+    pub fn threads(&mut self, threads: usize) -> Result<&mut Self, E> {
+        if threads < MIN_THREADS_COUNT {
+            return Err(E::InvalidNumberOfThreads);
+        }
+        if let Some(cores) = thread::available_parallelism().ok().map(|n| n.get()) {
+            if threads > cores * MAX_THREADS_MLT_TO_CORES {
+                return Err(E::NotOptimalNumberOfThreads);
+            }
+        }
         self.threads = Some(threads);
-        self
+        Ok(self)
     }
 
     /// Sets the capacity for progress tracking.

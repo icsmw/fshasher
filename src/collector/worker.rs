@@ -64,7 +64,7 @@ impl Worker {
                 })
             };
             let response = |action: Action| {
-                *queue_inner.write().unwrap() -= 1;
+                let _ = queue_inner.write().map(|mut v| *v -= 1);
                 send(action)
             };
             let check = |path: PathBuf, collected: &mut Vec<PathBuf>| {
@@ -150,7 +150,7 @@ impl Worker {
     ///
     /// - `usize`: The number of tasks in the queue.
     pub fn count(&self) -> usize {
-        *self.queue.read().unwrap()
+        *self.queue.read().expect("Worker's queue index available")
     }
 
     /// Checks if the worker is available to take new tasks.
@@ -168,7 +168,7 @@ impl Worker {
     ///
     /// - `path`: The path to be read by the worker.
     pub fn delegate(&self, path: PathBuf) {
-        *self.queue.write().unwrap() += 1;
+        let _ = self.queue.write().map(|mut v| *v += 1);
         let _ = self.tx_task.send(Task::Read(path));
     }
 

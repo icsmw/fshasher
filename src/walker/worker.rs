@@ -66,7 +66,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
         let queue_inner = queue.clone();
         let handle = thread::spawn(move || {
             let response = |action: Action<H>| {
-                *queue_inner.write().unwrap() -= 1;
+                let _ = queue_inner.write().map(|mut v| *v -= 1);
                 tx_queue.send(action).map_err(|err| {
                     error!(
                         "Worker cannot communicate with pool. Channel error. Worker will be closed"
@@ -119,7 +119,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
     ///
     /// - `bool`: `true` if the worker is free, `false` otherwise.
     pub fn is_free(&self) -> bool {
-        *self.queue.read().unwrap() == 0
+        *self.queue.read().expect("Worker's queue index available") == 0
     }
 
     /// Checks if the worker is available to take new tasks.
@@ -137,7 +137,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
     ///
     /// - `jobs`: The vector of jobs (file paths, hasher, reader) to be processed by the worker.
     pub fn delegate(&self, jobs: Vec<Job<H, R>>) {
-        *self.queue.write().unwrap() += 1;
+        let _ = self.queue.write().map(|mut v| *v += 1);
         let _ = self.tx_task.send(Task::Hash(jobs));
     }
 

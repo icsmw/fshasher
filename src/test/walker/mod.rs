@@ -1,6 +1,8 @@
 mod cancellation;
+mod changed_dest;
 mod progress;
 mod stratagies;
+
 use crate::{
     collector::Tolerance, entry::Entry, error::E, hasher, reader, test::usecase::*, Options,
 };
@@ -72,7 +74,7 @@ fn changes() -> Result<(), E> {
             reader::buffering::Buffering::default(),
         )?;
     let hash_a = walker_a.collect()?.hash()?.to_vec();
-    usecase.change()?;
+    usecase.change(10)?;
     let mut walker_b = Options::new()
         .entry(Entry::from(&usecase.root)?)?
         .tolerance(Tolerance::LogErrors)
@@ -100,7 +102,7 @@ fn changes_stress() -> Result<(), E> {
                 reader::buffering::Buffering::default(),
             )?;
         let hash_a = walker_a.collect()?.hash()?.to_vec();
-        usecase.change()?;
+        usecase.change(10)?;
         let mut walker_b = Options::new()
             .entry(Entry::from(&usecase.root)?)?
             .tolerance(Tolerance::LogErrors)
@@ -112,6 +114,23 @@ fn changes_stress() -> Result<(), E> {
         assert_eq!(walker_a.count(), usecase.files.len());
         assert_eq!(walker_b.count(), usecase.files.len());
         assert_ne!(hash_a, hash_b);
+    }
+    usecase.clean()?;
+    Ok(())
+}
+
+#[test]
+fn iterator() -> Result<(), E> {
+    let usecase = UseCase::unnamed(2, 4, 2, &[])?;
+    let mut walker = Options::new().entry(Entry::from(&usecase.root)?)?.walker(
+        hasher::blake::Blake::new(),
+        reader::buffering::Buffering::default(),
+    )?;
+    let _ = walker.collect()?.hash()?;
+    assert_eq!(walker.count(), usecase.files.len());
+    assert_eq!(walker.iter().count(), usecase.files.len());
+    for (filename, _) in walker.iter() {
+        assert!(usecase.files.contains(filename));
     }
     usecase.clean()?;
     Ok(())

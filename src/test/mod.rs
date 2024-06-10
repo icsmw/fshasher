@@ -1,4 +1,5 @@
 mod collector;
+mod prankster;
 pub(crate) mod usecase;
 pub(crate) mod utils;
 mod walker;

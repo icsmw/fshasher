@@ -1,5 +1,5 @@
 mod error;
-mod options;
+pub(crate) mod options;
 mod pool;
 mod progress;
 mod worker;
@@ -290,10 +290,16 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
         let (tx_queue, rx_queue): (Sender<Action<H>>, Receiver<Action<H>>) = channel();
         let progress = self.progress.as_ref().map(|(progress, _)| progress.clone());
         let breaker = self.breaker.clone();
-        let threads = opt
-            .threads
-            .or_else(|| thread::available_parallelism().ok().map(|n| n.get()))
+        let cores = thread::available_parallelism()
+            .ok()
+            .map(|n| n.get())
             .ok_or(E::OptimalThreadsNumber)?;
+        if let Some(threads) = &opt.threads {
+            if cores * options::MAX_THREADS_MLT_TO_CORES < *threads {
+                return Err(E::OptimalThreadsNumber);
+            }
+        }
+        let threads = opt.threads.unwrap_or(cores);
         let mut workers: Pool<H, R> = Pool::new(
             threads,
             tx_queue.clone(),

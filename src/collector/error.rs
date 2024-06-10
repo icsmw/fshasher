@@ -13,4 +13,6 @@ pub enum E {
     OptimalThreadsNumber,
     #[error("Operation has been aborted")]
     Aborted,
+    #[error("Channel \"{0}\" isn't available")]
+    ChannelErr(String),
 }

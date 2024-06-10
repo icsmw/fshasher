@@ -39,4 +39,3 @@ println!("Hash of {}: {:?}", temp_dir().display(), walker.collect().unwrap().has
 ```
 
 # Behaviour & error handeling
-- if collected file doesn't exist any more

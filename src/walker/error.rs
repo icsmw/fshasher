@@ -23,6 +23,12 @@ pub enum E {
     AbsolutePathRequired(PathBuf),
     #[error("Operation has been aborted")]
     Aborted,
+    #[error("Invalid number of threads for collecting and hashing")]
+    InvalidNumberOfThreads,
+    #[error(
+        "Not optimal number of threads for collecting and hashing. Twice more than cores number"
+    )]
+    NotOptimalNumberOfThreads,
     #[error("File doesn't exist: {0}")]
     FileDoesNotExists(PathBuf),
     #[error("Walker isn't inited")]

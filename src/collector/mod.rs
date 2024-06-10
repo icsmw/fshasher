@@ -5,7 +5,7 @@ mod worker;
 use crate::{
     breaker::Breaker,
     entry::Entry,
-    walker::{JobType, Progress},
+    walker::{options, JobType, Progress},
 };
 pub use error::E;
 use log::{debug, error, warn};
@@ -153,13 +153,20 @@ pub fn collect(
     let (tx_queue, rx_queue): (Sender<Action>, Receiver<Action>) = channel();
     tx_queue
         .send(Action::Delegate(entry.entry.clone()))
-        .unwrap();
+        .map_err(|_| E::ChannelErr(String::from("Master Queue")))?;
     let progress = progress.clone();
     let breaker = breaker.clone();
     let tolerance = tolerance.clone();
-    let threads = threads
-        .or_else(|| thread::available_parallelism().ok().map(|n| n.get()))
+    let cores = thread::available_parallelism()
+        .ok()
+        .map(|n| n.get())
         .ok_or(E::OptimalThreadsNumber)?;
+    if let Some(threads) = threads {
+        if cores * options::MAX_THREADS_MLT_TO_CORES < *threads {
+            return Err(E::OptimalThreadsNumber);
+        }
+    }
+    let threads = threads.unwrap_or(cores);
     let entry_inner = entry.clone();
     let handle: JoinHandle<CollectingResult> = thread::spawn(move || {
         let mut collected: Vec<PathBuf> = Vec::new();

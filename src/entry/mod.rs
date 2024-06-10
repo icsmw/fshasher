@@ -14,16 +14,16 @@ use std::path::{Path, PathBuf};
 /// Ways to use `Entry`:
 ///
 /// - No filters; take all files from the destination folder. `Entry` can be used without any filtering.
-/// It is sufficient to assign `Entry` with a path to an existing folder. `Walker` will take this path
-/// and collect and hash (recursively) all files without filtering.
+///   It is sufficient to assign `Entry` with a path to an existing folder. `Walker` will take this path
+///   and collect and hash (recursively) all files without filtering.
 ///
 /// - Filtering by target's nature. Depending on what you want to filter, file or folder, you can add
-/// filters to include or exclude items using the methods `include(..)` and `exclude(..)`. Both methods
-/// take a `Filter` enum as an argument, which can be used to assign a filter based on the target's nature.
+///   filters to include or exclude items using the methods `include(..)` and `exclude(..)`. Both methods
+///   take a `Filter` enum as an argument, which can be used to assign a filter based on the target's nature.
 ///
-/// `Filter::Files("*key_word_in_file_name*")` will be applied to each found file name.
-/// `Filter::Folders("*key_word_in_folder_name*")` will be applied to each found folder name.
-/// `Filter::Common("*key_word*")` will apply the filter to any target to full path.
+///   - `Filter::Files("*key_word_in_file_name*")` will be applied to each found file name.
+///   - `Filter::Folders("*key_word_in_folder_name*")` will be applied to each found folder name.
+///   - `Filter::Common("*key_word*")` will apply the filter to any target to full path.
 ///
 /// Excluding filters have higher priority than including filters. If a target matches an excluding filter, the target
 /// will be ignored even if it matches an including filter.
@@ -31,15 +31,15 @@ use std::path::{Path, PathBuf};
 /// The argument of the filter is a glob pattern.
 ///
 /// - Direct filtering by glob pattern. Using this method, you can define positive and negative glob patterns
-/// with `PatternFilter`.
+///   with `PatternFilter`.
 ///
-/// `PatternFilter::Ignore("**/*/*.ts")` - ignore all paths (both folders and files) if they match
-/// the glob pattern.
-/// `PatternFilter::Accept("**/*/*.ts")` - include all paths (both folders and files) if they match
-/// the glob pattern.
-/// `PatternFilter::Cmb(vec![PatternFilter::Ignore("**/*/*.ts"), PatternFilter::Ignore("**/*/*.tjs")])` -
-/// allows creating a combination of patterns. `PatternFilter::Cmb(..)` doesn't support nested combinations;
-/// attempting to nest another `PatternFilter::Cmb(..)` inside will cause an error.
+///   - `PatternFilter::Ignore("**/*/*.ts")` - ignore all paths (both folders and files) if they match
+///      the glob pattern.
+///   - `PatternFilter::Accept("**/*/*.ts")` - include all paths (both folders and files) if they match
+///     the glob pattern.
+///   - `PatternFilter::Cmb(vec![PatternFilter::Ignore("**/*/*.ts"), PatternFilter::Ignore("**/*/*.tjs")])` -
+///     allows creating a combination of patterns. `PatternFilter::Cmb(..)` doesn't support nested combinations;
+///     attempting to nest another `PatternFilter::Cmb(..)` inside will cause an error.
 ///
 ///
 /// The difference between "Filtering by target's nature" and "Direct filtering by glob pattern" is: in the

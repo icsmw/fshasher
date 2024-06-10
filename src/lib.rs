@@ -18,8 +18,8 @@ pub use reader::Reader;
 pub use walker::{JobType, Options, Progress, ReadingStrategy, Tick, Walker};
 
 // TODO:
-// - usecase when during collecting or hashing files are removed or created isn't covered
-// - cover by tests iterator too
+// - [x] usecase when during collecting or hashing files are removed or created isn't covered
+// - [x] cover by tests iterator too
 // - get rid of all unwrap() in code
-// - tests for different number of threads
-// - test for 0 threads
+// - [x] tests for different number of threads
+// - [x] test for 0 threads
