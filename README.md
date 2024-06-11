@@ -1,3 +1,7 @@
+[![LICENSE](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE.txt)
+[![](https://github.com/icsmw/fshasher/actions/workflows/push_and_pr_master.yml/badge.svg)](https://github.com/icsmw/fshasher/actions/workflows/push_and_pr_master.yml)
+![Crates.io](https://img.shields.io/crates/v/fshasher)
+
 `fshasher` allows for quickly calculating a common hash for all files in a target folder (recursively).
 
 # Table of Contents
