@@ -104,7 +104,7 @@ impl Entry {
     ///     let _ = remove_dir(&entry);
     /// ```
     pub fn from<T: AsRef<Path>>(path: T) -> Result<Self, E> {
-        Ok(Self::new().entry(path)?)
+        Self::new().entry(path)
     }
 
     /// Sets the entry path. The entry path is the folder from which files will be collected and hashed.
