@@ -254,3 +254,7 @@ Ultimately, whether to ignore errors or not is up to the developer's choice.
 ```sh
 export RUST_LOG=debug
 ```  
+
+# Contributing
+
+Contributions are welcome! Please read the short [Contributing Guide](CONTRIBUTING.md).
