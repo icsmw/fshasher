@@ -1,4 +1,4 @@
-name: Linting & Tests
+name: Checks
 
 on:
   push:
@@ -10,6 +10,7 @@ on:
 
 jobs:
   linting:
+    name: Clippy
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
