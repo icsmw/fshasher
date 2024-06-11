@@ -1,6 +1,6 @@
 use super::{Entry, Filter, Walker, E};
 use crate::{collector::Tolerance, Hasher, Reader};
-use std::{mem, ops::Range, path::Path, thread};
+use std::{ops::Range, path::Path, thread};
 
 pub(crate) const MIN_THREADS_COUNT: usize = 1;
 pub(crate) const MAX_THREADS_MLT_TO_CORES: usize = 2;
@@ -95,7 +95,7 @@ impl Options {
     /// # Returns
     ///
     /// - `Result<&mut Self, E>`: The modified `Options` instance or an error if the strategy is invalid.
-    pub fn reading_strategy(&mut self, reading_strategy: ReadingStrategy) -> Result<&mut Self, E> {
+    pub fn reading_strategy(mut self, reading_strategy: ReadingStrategy) -> Result<Self, E> {
         if let ReadingStrategy::Scenario(scenario) = &reading_strategy {
             let mut from = 0;
             for (range, strategy) in scenario.iter() {
@@ -121,7 +121,7 @@ impl Options {
     /// # Returns
     ///
     /// - A mutable reference to the modified `Options` instance.
-    pub fn threads(&mut self, threads: usize) -> Result<&mut Self, E> {
+    pub fn threads(mut self, threads: usize) -> Result<Self, E> {
         if threads < MIN_THREADS_COUNT {
             return Err(E::InvalidNumberOfThreads);
         }
@@ -143,7 +143,7 @@ impl Options {
     /// # Returns
     ///
     /// - A mutable reference to the modified `Options` instance.
-    pub fn progress(&mut self, capacity: usize) -> &mut Self {
+    pub fn progress(mut self, capacity: usize) -> Self {
         self.progress = Some(capacity);
         self
     }
@@ -158,7 +158,7 @@ impl Options {
     /// # Returns
     ///
     /// - A mutable reference to the modified `Options` instance.
-    pub fn tolerance(&mut self, tolerance: Tolerance) -> &mut Self {
+    pub fn tolerance(mut self, tolerance: Tolerance) -> Self {
         self.tolerance = tolerance;
         self
     }
@@ -172,7 +172,7 @@ impl Options {
     /// # Returns
     ///
     /// - `Result<&mut Self, E>`: A mutable reference to the modified `Options` instance or an error if the path is invalid.
-    pub fn path<P: AsRef<Path>>(&mut self, path: P) -> Result<&mut Self, E> {
+    pub fn path<P: AsRef<Path>>(mut self, path: P) -> Result<Self, E> {
         self.entries.push(Entry::from(path)?);
         Ok(self)
     }
@@ -186,7 +186,7 @@ impl Options {
     /// # Returns
     ///
     /// - `Result<&mut Self, E>`: A mutable reference to the modified `Options` instance or an error if the entry is invalid.
-    pub fn entry(&mut self, entry: Entry) -> Result<&mut Self, E> {
+    pub fn entry(mut self, entry: Entry) -> Result<Self, E> {
         if !entry.entry.is_absolute() {
             return Err(E::RelativePathAsEntry(entry.entry));
         }
@@ -203,8 +203,8 @@ impl Options {
     /// # Returns
     ///
     /// - `Result<&mut Self, E>`: A mutable reference to the modified `Options` instance or an error if the filter is invalid.
-    pub fn include<T: AsRef<str>>(&mut self, filter: Filter<T>) -> Result<&mut Self, E> {
-        self.global.include(filter)?;
+    pub fn include<T: AsRef<str>>(mut self, filter: Filter<T>) -> Result<Self, E> {
+        self.global = self.global.include(filter)?;
         Ok(self)
     }
 
@@ -217,8 +217,8 @@ impl Options {
     /// # Returns
     ///
     /// - `Result<&mut Self, E>`: A mutable reference to the modified `Options` instance or an error if the filter is invalid.
-    pub fn exclude<T: AsRef<str>>(&mut self, filter: Filter<T>) -> Result<&mut Self, E> {
-        self.global.exclude(filter)?;
+    pub fn exclude<T: AsRef<str>>(mut self, filter: Filter<T>) -> Result<Self, E> {
+        self.global = self.global.exclude(filter)?;
         Ok(self)
     }
 
@@ -233,21 +233,10 @@ impl Options {
     ///
     /// - `Result<Walker<H, R>, E>`: A new `Walker` instance or an error if the creation fails.
     pub fn walker<H: Hasher + 'static, R: Reader + 'static>(
-        &mut self,
+        self,
         hasher: H,
         reader: R,
     ) -> Result<Walker<H, R>, E> {
-        Ok(Walker::new(
-            Options {
-                tolerance: mem::take(&mut self.tolerance),
-                global: mem::take(&mut self.global),
-                entries: mem::take(&mut self.entries),
-                progress: self.progress.take(),
-                threads: self.threads.take(),
-                reading_strategy: self.reading_strategy.clone(),
-            },
-            hasher,
-            reader,
-        ))
+        Ok(Walker::new(self, hasher, reader))
     }
 }

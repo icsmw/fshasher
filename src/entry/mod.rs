@@ -104,9 +104,7 @@ impl Entry {
     ///     let _ = remove_dir(&entry);
     /// ```
     pub fn from<T: AsRef<Path>>(path: T) -> Result<Self, E> {
-        let mut entry = Self::new();
-        entry.entry(path)?;
-        Ok(entry)
+        Ok(Self::new().entry(path)?)
     }
 
     /// Sets the entry path. The entry path is the folder from which files will be collected and hashed.
@@ -126,12 +124,14 @@ impl Entry {
     /// };
     /// use uuid::Uuid;
     ///
-    /// let entries: Vec<PathBuf> = (0..3).map(|_| temp_dir().join(Uuid::new_v4().to_string())).collect();
+    /// let entries: Vec<PathBuf> = (0..3)
+    ///     .map(|_| temp_dir().join(Uuid::new_v4().to_string()))
+    ///     .collect();
     /// let mut opt = Options::new();
-    /// entries.iter().for_each(|p| {
+    /// for p in entries.iter() {
     ///     let _ = create_dir(p);
-    ///     let _ = opt.entry(Entry::from(p).unwrap());
-    /// });
+    ///     opt = opt.entry(Entry::from(p).unwrap()).unwrap();
+    /// }
     ///
     /// let mut walker = opt.walker(
     ///     hasher::blake::Blake::default(),
@@ -156,7 +156,7 @@ impl Entry {
     ///
     /// - The entry path will be accepted only if it is a path to an existing folder; in all other cases, it will
     ///   cause an error.
-    pub fn entry<T: AsRef<Path>>(&mut self, path: T) -> Result<&mut Self, E> {
+    pub fn entry<T: AsRef<Path>>(mut self, path: T) -> Result<Self, E> {
         let path = path.as_ref().to_path_buf();
         if !path.is_absolute() {
             return Err(E::RelativePathAsEntry(path));
@@ -176,7 +176,7 @@ impl Entry {
     /// # Returns
     ///
     /// - `Result<&mut Self, E>`: A mutable reference to the modified `Entry` instance or an error if the filter is invalid.
-    pub fn include<T: AsRef<str>>(&mut self, filter: Filter<T>) -> Result<&mut Self, E> {
+    pub fn include<T: AsRef<str>>(mut self, filter: Filter<T>) -> Result<Self, E> {
         let accepted: FilterAccepted = filter.try_into()?;
         if !self.include.contains(&accepted) && !self.exclude.contains(&accepted) {
             self.include.push(accepted);
@@ -193,7 +193,7 @@ impl Entry {
     /// # Returns
     ///
     /// - `Result<&mut Self, E>`: A mutable reference to the modified `Entry` instance or an error if the filter is invalid.
-    pub fn exclude<T: AsRef<str>>(&mut self, filter: Filter<T>) -> Result<&mut Self, E> {
+    pub fn exclude<T: AsRef<str>>(mut self, filter: Filter<T>) -> Result<Self, E> {
         let accepted: FilterAccepted = filter.try_into()?;
         if !self.include.contains(&accepted) && !self.exclude.contains(&accepted) {
             self.exclude.push(accepted);
@@ -210,7 +210,7 @@ impl Entry {
     /// # Returns
     ///
     /// - `Result<&mut Self, E>`: A mutable reference to the modified `Entry` instance or an error if the pattern is invalid.
-    pub fn pattern<T: AsRef<str>>(&mut self, pattern: PatternFilter<T>) -> Result<&mut Self, E> {
+    pub fn pattern<T: AsRef<str>>(mut self, pattern: PatternFilter<T>) -> Result<Self, E> {
         let accepted: PatternFilterAccepted = pattern.try_into()?;
         if !self.patterns.contains(&accepted) {
             self.patterns.push(accepted);

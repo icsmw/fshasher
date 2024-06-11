@@ -54,11 +54,11 @@ fn files_exclude() -> Result<(), error::E> {
     let mut entry = Entry::from(&usecase.root)?;
     let included: &[&str] = &["ccc"];
     let excluded: &[&str] = &["aaa", "bbb"];
-    excluded.iter().for_each(|ext| {
-        entry
+    for ext in excluded.iter() {
+        entry = entry
             .exclude(Filter::Files(format!("*.{ext}")))
             .expect("filter is set");
-    });
+    }
     let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
     assert!(!a.0.is_empty());
     assert!(!a.0.iter().any(|p| {
@@ -84,11 +84,11 @@ fn files_include() -> Result<(), error::E> {
     let mut entry = Entry::from(&usecase.root)?;
     let included: &[&str] = &["ccc"];
     let excluded: &[&str] = &["aaa", "bbb"];
-    included.iter().for_each(|ext| {
-        entry
+    for ext in included.iter() {
+        entry = entry
             .include(Filter::Files(format!("*.{ext}")))
             .expect("filter is set");
-    });
+    }
     let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
     assert!(!a.0.is_empty());
     assert!(!a.0.iter().any(|p| {
@@ -123,8 +123,7 @@ fn folders_exclude() -> Result<(), error::E> {
         &["aaa", "bbb", "ccc"],
     )?;
     let breaker = Breaker::new();
-    let mut entry = Entry::from(&usecase.root)?;
-    entry
+    let entry = Entry::from(&usecase.root)?
         .exclude(Filter::Folders("*exclude*"))
         .expect("filter is set");
     let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
@@ -150,8 +149,7 @@ fn folders_include() -> Result<(), error::E> {
         &["aaa", "bbb", "ccc"],
     )?;
     let breaker = Breaker::new();
-    let mut entry = Entry::from(&usecase.root)?;
-    entry
+    let entry = Entry::from(&usecase.root)?
         .include(Filter::Folders("*include*"))
         .expect("filter is set");
     let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
@@ -184,11 +182,9 @@ fn folders_and_files() -> Result<(), error::E> {
         &["aaa", "bbb", "ccc"],
     )?;
     let breaker = Breaker::new();
-    let mut entry = Entry::from(&usecase.root)?;
-    entry
+    let entry = Entry::from(&usecase.root)?
         .exclude(Filter::Folders("*exclude*"))
-        .expect("filter is set");
-    entry
+        .expect("filter is set")
         .include(Filter::Files("*include*"))
         .expect("filter is set");
     let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
@@ -228,8 +224,7 @@ fn folders_and_files_common_exclude() -> Result<(), error::E> {
         &["aaa", "bbb", "ccc"],
     )?;
     let breaker = Breaker::new();
-    let mut entry = Entry::from(&usecase.root)?;
-    entry
+    let entry = Entry::from(&usecase.root)?
         .exclude(Filter::Common("*exclude*"))
         .expect("filter is set");
     let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
@@ -265,8 +260,7 @@ fn folders_and_files_common_include() -> Result<(), error::E> {
         &["aaa", "bbb", "ccc"],
     )?;
     let breaker = Breaker::new();
-    let mut entry = Entry::from(&usecase.root)?;
-    entry
+    let entry = Entry::from(&usecase.root)?
         .include(Filter::Common("*include*"))
         .expect("filter is set");
     let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
@@ -299,8 +293,7 @@ fn patterns_exclude() -> Result<(), error::E> {
         &["aaa", "bbb", "ccc"],
     )?;
     let breaker = Breaker::new();
-    let mut entry = Entry::from(&usecase.root)?;
-    entry
+    let entry = Entry::from(&usecase.root)?
         .pattern(PatternFilter::Ignore("*exclude*"))
         .expect("filter is set");
     let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
@@ -336,8 +329,7 @@ fn patterns_include() -> Result<(), error::E> {
         &["aaa", "bbb", "ccc"],
     )?;
     let breaker = Breaker::new();
-    let mut entry = Entry::from(&usecase.root)?;
-    entry
+    let entry = Entry::from(&usecase.root)?
         .pattern(PatternFilter::Accept("*include*"))
         .expect("filter is set");
     let a = collector::collect(&None, &entry, &breaker, &Tolerance::LogErrors, &None)?;
@@ -370,8 +362,7 @@ fn patterns_cmb() -> Result<(), error::E> {
         &["aaa", "bbb", "ccc"],
     )?;
     let breaker = Breaker::new();
-    let mut entry = Entry::from(&usecase.root)?;
-    entry
+    let entry = Entry::from(&usecase.root)?
         .pattern(PatternFilter::Cmb(vec![
             PatternFilter::Ignore("*exclude*"),
             PatternFilter::Ignore("*.ccc"),
