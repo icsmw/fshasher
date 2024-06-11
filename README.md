@@ -1,5 +1,29 @@
 `fshasher` allows for quickly calculating a common hash for all files in a target folder (recursively).
 
+# Table of Contents
+
+1. [Introduction](#introduction)
+
+-   [What does it do](#what-does-it-do)
+-   [Features](#features)
+-   [Where can it be useful?](#where-can-it-be-useful)
+-   [Basic example of usage](#basic-example-of-usage)
+
+2. [Configuration](#configuration)
+
+-   [General](#general)
+-   [Filtering](#filtering)
+-   [Patterns](#patterns)
+-   [Reading Strategy](#reading-strategy)
+
+3. [Extending: Hasher & Reader](#extending-hasher-reader)
+
+4. [Behaviour, Errors, Logs](#behaviour-errors-logs)
+
+-   [Error Handling](#error-handling)
+-   [Why Errors Can Be Ignored?](#why-errors-can-be-ignored)
+-   [Logs](#logs)
+
 # Introduction
 
 ## What does it do?
@@ -153,6 +177,7 @@ Next example:
         .entry(music_2024)?
         .walker(..);
 ```
+
 ## Reading Strategy
 
 Configuring a reading strategy helps optimize the hashing process to match a specific system's capabilities. On the one hand, the faster a file is read, the sooner its hashing can begin. On the other hand, hashing too much data at once can reduce performance or overload the CPU. To find a balance, the `ReadingStrategy` can be used.
