@@ -74,6 +74,14 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
                     err
                 })
             };
+            let report = |action: Action<H>| {
+                tx_queue.send(action).map_err(|err| {
+                    error!(
+                        "Worker cannot communicate with pool. Channel error. Worker will be closed"
+                    );
+                    err
+                })
+            };
             'outer: while let Ok(task) = rx_task.recv() {
                 let jobs = match task {
                     Task::Hash(jobs) => jobs,
@@ -89,7 +97,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
                     match hash_file(&path, hasher, reader, &reading_strategy, &breaker) {
                         Ok(hasher) => collected.push((path, hasher)),
                         Err(err) => {
-                            if response(Action::Error(path, err)).is_err() {
+                            if report(Action::Error(path, err)).is_err() {
                                 break 'outer;
                             }
                         }
@@ -120,6 +128,15 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
     /// - `bool`: `true` if the worker is free, `false` otherwise.
     pub fn is_free(&self) -> bool {
         *self.queue.read().expect("Worker's queue index available") == 0
+    }
+
+    /// Returns a number of tasks in a worker's queue
+    ///
+    /// # Returns
+    ///
+    /// - `usize`: number of tasks a worker's queue
+    pub fn queue_len(&self) -> usize {
+        *self.queue.read().expect("Worker's queue index available")
     }
 
     /// Checks if the worker is available to take new tasks.

@@ -3,6 +3,7 @@ mod error;
 use super::Hasher;
 use blake3::{Hash, Hasher as BlakeHasher};
 use error::E;
+
 pub struct Blake {
     hasher: BlakeHasher,
     hash: Option<Hash>,

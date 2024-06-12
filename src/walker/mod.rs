@@ -109,7 +109,7 @@ pub struct Walker<H: Hasher, R: Reader> {
     /// Paths collected during the recursive traversal of the paths specified in `Options` and
     /// according to the patterns. This field is populated when `collect()` is called but is reset
     /// when `hash()` is called.
-    paths: Vec<PathBuf>,
+    pub paths: Vec<PathBuf>,
     /// Paths to files or folders whose reading attempt caused an error. This field is not populated
     /// if the tolerance level is set to `Tolerance::StopOnErrors`.
     invalid: Vec<PathBuf>,
@@ -357,14 +357,14 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                 if paths.is_empty() {
                     return Ok(Vec::new());
                 }
-                let len = paths.len();
-                let end = if len < paths_per_jobs {
-                    0
-                } else {
-                    len - paths_per_jobs
-                };
                 let mut jobs = Vec::new();
                 while jobs.is_empty() && !paths.is_empty() {
+                    let len = paths.len();
+                    let end = if len < paths_per_jobs {
+                        0
+                    } else {
+                        len - paths_per_jobs
+                    };
                     for p in paths.drain(end..).collect::<Vec<PathBuf>>().into_iter() {
                         let r = match reader.bind(&p) {
                             Ok(r) => r,
@@ -408,6 +408,12 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                 worker.delegate(jobs);
             }
             let mut hashes = Vec::new();
+            if workers.queue_len() == 0 {
+                // This situation can be in case if dest folder was  removed right after collecting of paths.
+                workers.shutdown().wait();
+                summary.finish()?;
+                return Ok((summary, hashes, invalid));
+            }
             let mut waiting_for_shutdown = false;
             let mut pending: Option<Action<H>> = None;
             'outer: loop {
@@ -498,7 +504,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
             now.elapsed().as_millis(),
             now.elapsed().as_secs()
         );
-        Ok(hash)
+        Ok(if self.hashes.is_empty() { &[] } else { hash })
     }
 
     /// Returns an iterator to iterate over the calculated hashes.

@@ -74,7 +74,9 @@ impl Worker {
                 } else if path.is_dir() {
                     send(Action::Delegate(path))
                 } else {
-                    unreachable!("Expecting only file or folder");
+                    // This situation is possible in some timing. After folder is read, file can be removed.
+                    // Actualy nothing todo here.
+                    Ok(())
                 }
             };
             'outer: while let Ok(task) = rx_task.recv() {
@@ -98,10 +100,26 @@ impl Worker {
                         let _ = response(Action::Processed(collected));
                         break 'outer;
                     }
-                    let Ok(path) = el.map(|el| el.path()) else {
-                        // TODO: report error
-                        continue;
+                    let path = match el.map(|el| el.path()) {
+                        Ok(p) => p,
+                        Err(err) => {
+                            if response(Action::Error(
+                                path.join("err__fail_parse_DirEntry__"),
+                                err.into(),
+                                false,
+                            ))
+                            .is_err()
+                            {
+                                break 'outer;
+                            } else {
+                                continue;
+                            }
+                        }
                     };
+                    if !path.exists() {
+                        // It might be after folder read, file already doesn't exist
+                        continue;
+                    }
                     if !entry.filtered(&path) {
                         continue;
                     }

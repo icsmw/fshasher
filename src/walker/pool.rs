@@ -70,6 +70,15 @@ impl<H: Hasher + 'static, R: Reader + 'static> Pool<H, R> {
             == 0
     }
 
+    /// Returns a number of tasks in deligated to all workers
+    ///
+    /// # Returns
+    ///
+    /// - `usize`: number of tasks in deligated to all workers
+    pub fn queue_len(&self) -> usize {
+        self.workers.iter().map(|w| w.queue_len()).sum::<usize>()
+    }
+
     /// Sends a signal to each worker to shut down. This method doesn't wait for the workers to shut down;
     /// it only sends a shutdown signal to the workers.
     ///

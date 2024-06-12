@@ -13,6 +13,23 @@ use std::{
 pub(crate) use strategy::Strategy;
 use uuid::Uuid;
 
+pub struct UseCaseEmpty {
+    pub root: PathBuf,
+}
+
+impl UseCaseEmpty {
+    pub fn gen() -> Result<Self, io::Error> {
+        let root = temp_dir().join(Uuid::new_v4().to_string());
+        create_dir(&root)?;
+        Ok(Self { root })
+    }
+    pub fn clean(&self) -> Result<(), io::Error> {
+        if !self.root.exists() {
+            return Ok(());
+        }
+        remove_dir_all(&self.root)
+    }
+}
 pub struct UseCase {
     pub files: Vec<PathBuf>,
     pub root: PathBuf,
