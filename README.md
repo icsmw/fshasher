@@ -148,10 +148,10 @@ The following example:
 ```ignore
     let music_2023 = Entry::from("music/2023")?
         .pattern(PatternFilter::Accept("*.flac"))?
-        .pattern(PatternFilter::Ignore("*.mp3"))?;
+        .pattern(PatternFilter::Accept("*.mp3"))?;
     let music_2024 = Entry::from("music/2023")?
         .pattern(PatternFilter::Accept("*.flac"))?
-        .pattern(PatternFilter::Ignore("*.mp3"))?;
+        .pattern(PatternFilter::Accept("*.mp3"))?;
     let walker = Options::new()
         .entry(music_2023)?
         .entry(music_2024)?
