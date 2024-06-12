@@ -82,6 +82,73 @@ fn stress_permissions_issue() -> Result<(), E> {
 }
 
 #[test]
+fn empty_dest_folder() -> Result<(), E> {
+    let usecase = UseCaseEmpty::gen()?;
+    let mut walker = Options::new()
+        .entry(Entry::from(&usecase.root)?)?
+        .tolerance(Tolerance::LogErrors)
+        .walker(
+            hasher::blake::Blake::default(),
+            reader::buffering::Buffering::default(),
+        )?;
+    let hash = walker.collect()?.hash()?.to_vec();
+    assert!(hash.is_empty());
+    usecase.clean()?;
+    Ok(())
+}
+
+#[test]
+fn empty_folders() -> Result<(), E> {
+    let usecase = UseCase::unnamed(5, 0, 3, &[])?;
+    let mut walker = Options::new()
+        .entry(Entry::from(&usecase.root)?)?
+        .tolerance(Tolerance::LogErrors)
+        .walker(
+            hasher::blake::Blake::default(),
+            reader::buffering::Buffering::default(),
+        )?;
+    let hash = walker.collect()?.hash()?.to_vec();
+    assert!(hash.is_empty());
+    usecase.clean()?;
+    Ok(())
+}
+
+#[test]
+fn removed_dest() -> Result<(), E> {
+    let usecase = UseCase::unnamed(5, 2, 3, &[])?;
+    let mut walker = Options::new()
+        .entry(Entry::from(&usecase.root)?)?
+        .tolerance(Tolerance::LogErrors)
+        .walker(
+            hasher::blake::Blake::default(),
+            reader::buffering::Buffering::default(),
+        )?;
+    walker.collect()?;
+    assert_eq!(walker.paths.len(), usecase.files.len());
+    usecase.clean()?;
+    assert!(walker.hash()?.is_empty());
+    assert_eq!(walker.invalid().len(), usecase.files.len());
+    Ok(())
+}
+
+#[test]
+fn removed_dest_no_tolerance() -> Result<(), E> {
+    let usecase = UseCase::unnamed(5, 2, 3, &[])?;
+    let mut walker = Options::new()
+        .entry(Entry::from(&usecase.root)?)?
+        .tolerance(Tolerance::StopOnErrors)
+        .walker(
+            hasher::blake::Blake::default(),
+            reader::buffering::Buffering::default(),
+        )?;
+    walker.collect()?;
+    assert_eq!(walker.paths.len(), usecase.files.len());
+    usecase.clean()?;
+    assert!(walker.hash().is_err());
+    Ok(())
+}
+
+#[test]
 fn changes() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     let mut walker_a = Options::new()
