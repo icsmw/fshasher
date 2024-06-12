@@ -89,6 +89,7 @@ pub enum Action<H: Hasher> {
 /// ```
 /// use fshasher::{Options, Entry, Tolerance, hasher, reader};
 /// use std::env::temp_dir;
+///
 /// let mut walker = Options::new()
 ///     .entry(Entry::from(temp_dir()).unwrap()).unwrap()
 ///     .tolerance(Tolerance::LogErrors)

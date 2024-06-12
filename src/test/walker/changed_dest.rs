@@ -8,7 +8,7 @@ fn changed_dest_after_collecting_ignore_error() -> Result<(), E> {
     let mut walker = Options::from(&usecase.root)?
         .tolerance(Tolerance::LogErrors)
         .walker(
-            hasher::blake::Blake::new(),
+            hasher::blake::Blake::default(),
             reader::buffering::Buffering::default(),
         )?;
     walker.collect()?;
@@ -26,7 +26,7 @@ fn changed_dest_after_collecting_with_error() -> Result<(), E> {
     let mut walker = Options::from(&usecase.root)?
         .tolerance(Tolerance::StopOnErrors)
         .walker(
-            hasher::blake::Blake::new(),
+            hasher::blake::Blake::default(),
             reader::buffering::Buffering::default(),
         )?;
     walker.collect()?;

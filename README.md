@@ -208,7 +208,7 @@ In the following example:
         .unwrap()
         .tolerance(Tolerance::LogErrors)
         .walker(
-            hasher::blake::Blake::new(),
+            hasher::blake::Blake::default(),
             reader::mapping::Mapping::default(),
         )
         .unwrap();

@@ -9,14 +9,14 @@ fn buffer() -> Result<(), E> {
         .reading_strategy(ReadingStrategy::Buffer)?
         .tolerance(Tolerance::LogErrors)
         .walker(
-            hasher::blake::Blake::new(),
+            hasher::blake::Blake::default(),
             reader::buffering::Buffering::default(),
         )?;
     let hash_a = walker_a.collect()?.hash()?.to_vec();
     let mut walker_b = Options::from(&usecase.root)?
         .tolerance(Tolerance::LogErrors)
         .walker(
-            hasher::blake::Blake::new(),
+            hasher::blake::Blake::default(),
             reader::buffering::Buffering::default(),
         )?;
     let hash_b = walker_b.collect()?.hash()?.to_vec();
@@ -34,14 +34,14 @@ fn complete() -> Result<(), E> {
         .reading_strategy(ReadingStrategy::Complete)?
         .tolerance(Tolerance::LogErrors)
         .walker(
-            hasher::blake::Blake::new(),
+            hasher::blake::Blake::default(),
             reader::buffering::Buffering::default(),
         )?;
     let hash_a = walker_a.collect()?.hash()?.to_vec();
     let mut walker_b = Options::from(&usecase.root)?
         .tolerance(Tolerance::LogErrors)
         .walker(
-            hasher::blake::Blake::new(),
+            hasher::blake::Blake::default(),
             reader::buffering::Buffering::default(),
         )?;
     let hash_b = walker_b.collect()?.hash()?.to_vec();
@@ -59,14 +59,14 @@ fn memory_mapped() -> Result<(), E> {
         .reading_strategy(ReadingStrategy::MemoryMapped)?
         .tolerance(Tolerance::LogErrors)
         .walker(
-            hasher::blake::Blake::new(),
+            hasher::blake::Blake::default(),
             reader::mapping::Mapping::default(),
         )?;
     let hash_a = walker_a.collect()?.hash()?.to_vec();
     let mut walker_b = Options::from(&usecase.root)?
         .tolerance(Tolerance::LogErrors)
         .walker(
-            hasher::blake::Blake::new(),
+            hasher::blake::Blake::default(),
             reader::buffering::Buffering::default(),
         )?;
     let hash_b = walker_b.collect()?.hash()?.to_vec();
@@ -87,14 +87,14 @@ fn scenario() -> Result<(), E> {
         ]))?
         .tolerance(Tolerance::LogErrors)
         .walker(
-            hasher::blake::Blake::new(),
+            hasher::blake::Blake::default(),
             reader::mapping::Mapping::default(),
         )?;
     let hash_a = walker_a.collect()?.hash()?.to_vec();
     let mut walker_b = Options::from(&usecase.root)?
         .tolerance(Tolerance::LogErrors)
         .walker(
-            hasher::blake::Blake::new(),
+            hasher::blake::Blake::default(),
             reader::buffering::Buffering::default(),
         )?;
     let hash_b = walker_b.collect()?.hash()?.to_vec();
