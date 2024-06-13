@@ -28,7 +28,7 @@ pub trait Reader: Read + Send + Sync {
     ///
     /// - `Result<Self, Self::Error>`: On success, returns an instance of the reader. On failure,
     ///   returns an error of type `Self::Error`.
-    fn bind<P: AsRef<Path>>(&self, path: P) -> Result<Self, Self::Error>
+    fn bind<P: AsRef<Path>>(&self, path: P) -> Self
     where
         Self: Sized;
 
@@ -84,13 +84,13 @@ impl<T: Reader + Send + Sync> ReaderWrapper<T> {
     ///
     /// - `Result<Self, walker::E>`: On success, returns a new `ReaderWrapper` instance with the bound reader.
     ///   On failure, returns an error of type `walker::E`.
-    pub fn bind<P: AsRef<Path>>(&self, path: P) -> Result<Self, walker::E>
+    pub fn bind<P: AsRef<Path>>(&self, path: P) -> Self
     where
         Self: Sized,
     {
-        Ok(ReaderWrapper {
-            inner: self.inner.bind(path).map_err(walker::E::reader)?,
-        })
+        ReaderWrapper {
+            inner: self.inner.bind(path),
+        }
     }
 
     /// Memory-maps the file for reading using the inner reader.

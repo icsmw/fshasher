@@ -7,7 +7,7 @@ use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc::{channel, Receiver, Sender},
-        Arc, RwLock,
+        Arc,
     },
     thread::{self, JoinHandle},
 };
@@ -31,7 +31,6 @@ type TaskChannel<H, R> = (Sender<Task<H, R>>, Receiver<Task<H, R>>);
 /// an instance of hasher and reader to each file.
 pub struct Worker<H: Hasher, R: Reader> {
     tx_task: Sender<Task<H, R>>,
-    queue: Arc<RwLock<usize>>,
     available: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
 }
@@ -60,16 +59,13 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
         breaker: Breaker,
     ) -> Self {
         let (tx_task, rx_task): TaskChannel<H, R> = channel();
-        let queue = Arc::new(RwLock::new(0));
         let available: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
         let available_inner = available.clone();
-        let queue_inner = queue.clone();
         let handle = thread::spawn(move || {
             let response = |action: Action<H>| {
-                let _ = queue_inner.write().map(|mut v| *v -= 1);
                 tx_queue.send(action).map_err(|err| {
                     error!(
-                        "Worker cannot communicate with pool. Channel error. Worker will be closed"
+                        "Hasher worker cannot communicate with pool. Channel error. Worker will be closed"
                     );
                     err
                 })
@@ -77,7 +73,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
             let report = |action: Action<H>| {
                 tx_queue.send(action).map_err(|err| {
                     error!(
-                        "Worker cannot communicate with pool. Channel error. Worker will be closed"
+                        "Hasher worker cannot communicate with pool. Channel error. Worker will be closed"
                     );
                     err
                 })
@@ -109,34 +105,15 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
             }
             available_inner.store(false, Ordering::Relaxed);
             if tx_queue.send(Action::WorkerShutdownNotification).is_err() {
-                error!("Worker cannot communicate with pool. Channel error. Worker will be closed");
+                error!("Hasher worker cannot communicate with pool. Channel error. Worker will be closed");
             }
             debug!("Hasher worker has been shut down");
         });
         Self {
             tx_task,
-            queue,
             available,
             handle: Some(handle),
         }
-    }
-
-    /// Checks if the worker is free (i.e., has no tasks in the queue).
-    ///
-    /// # Returns
-    ///
-    /// - `bool`: `true` if the worker is free, `false` otherwise.
-    pub fn is_free(&self) -> bool {
-        *self.queue.read().expect("Worker's queue index available") == 0
-    }
-
-    /// Returns a number of tasks in a worker's queue
-    ///
-    /// # Returns
-    ///
-    /// - `usize`: number of tasks a worker's queue
-    pub fn queue_len(&self) -> usize {
-        *self.queue.read().expect("Worker's queue index available")
     }
 
     /// Checks if the worker is available to take new tasks.
@@ -154,7 +131,6 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
     ///
     /// - `jobs`: The vector of jobs (file paths, hasher, reader) to be processed by the worker.
     pub fn delegate(&self, jobs: Vec<Job<H, R>>) {
-        let _ = self.queue.write().map(|mut v| *v += 1);
         let _ = self.tx_task.send(Task::Hash(jobs));
     }
 

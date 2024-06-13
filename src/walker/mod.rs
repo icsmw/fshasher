@@ -354,45 +354,27 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                 tolerance: &Tolerance,
                 invalid: &mut Vec<PathBuf>,
             ) -> Result<Vec<Job<H, R>>, E> {
-                if paths.is_empty() {
-                    return Ok(Vec::new());
-                }
                 let mut jobs = Vec::new();
-                while jobs.is_empty() && !paths.is_empty() {
-                    let len = paths.len();
-                    let end = if len < paths_per_jobs {
-                        0
-                    } else {
-                        len - paths_per_jobs
+                while jobs.len() < paths_per_jobs && !paths.is_empty() {
+                    let path = paths.remove(0);
+                    let h = match hasher.setup() {
+                        Ok(h) => h,
+                        Err(err) => {
+                            if let Some(err) = check_err(path, err, tolerance, invalid) {
+                                return Err(err);
+                            } else {
+                                continue;
+                            }
+                        }
                     };
-                    for p in paths.drain(end..).collect::<Vec<PathBuf>>().into_iter() {
-                        let r = match reader.bind(&p) {
-                            Ok(r) => r,
-                            Err(err) => {
-                                if let Some(err) = check_err(p, err, tolerance, invalid) {
-                                    return Err(err);
-                                } else {
-                                    continue;
-                                }
-                            }
-                        };
-                        let h = match hasher.setup() {
-                            Ok(r) => r,
-                            Err(err) => {
-                                if let Some(err) = check_err(p, err, tolerance, invalid) {
-                                    return Err(err);
-                                } else {
-                                    continue;
-                                }
-                            }
-                        };
-                        jobs.push((p, h, r));
-                    }
+                    let r = reader.bind(&path);
+                    jobs.push((path, h, r));
                 }
                 Ok(jobs)
             }
             let mut summary = hasher.setup()?;
             let mut invalid: Vec<PathBuf> = Vec::new();
+            let mut no_jobs = true;
             for worker in workers.iter() {
                 let jobs: Vec<(PathBuf, HasherWrapper<H>, ReaderWrapper<R>)> = get_next_job(
                     &mut paths,
@@ -405,11 +387,11 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                 if jobs.is_empty() {
                     break;
                 }
+                no_jobs = false;
                 worker.delegate(jobs);
             }
             let mut hashes = Vec::new();
-            if workers.queue_len() == 0 {
-                // This situation can be in case if dest folder was  removed right after collecting of paths.
+            if no_jobs {
                 workers.shutdown().wait();
                 summary.finish()?;
                 return Ok((summary, hashes, invalid));
@@ -455,7 +437,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                 if waiting_for_shutdown {
                     continue;
                 }
-                'delegate: for worker in workers.iter().filter(|w| w.is_free()) {
+                'delegate: for worker in workers.iter() {
                     let jobs: Vec<(PathBuf, HasherWrapper<H>, ReaderWrapper<R>)> = get_next_job(
                         &mut paths,
                         paths_per_jobs,

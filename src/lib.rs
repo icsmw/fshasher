@@ -16,3 +16,7 @@ pub use entry::{Entry, Filter};
 pub use hasher::Hasher;
 pub use reader::Reader;
 pub use walker::{JobType, Options, Progress, ReadingStrategy, Tick, Walker};
+// TODO:
+// - close file if error
+// - do not open file with binding of reader
+// - limit count of reading operations
