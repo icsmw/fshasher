@@ -15,7 +15,7 @@ pub use options::{Options, ReadingStrategy};
 use pool::Pool;
 pub use progress::{JobType, Progress, ProgressChannel, Tick};
 use std::{
-    mem,
+    io, mem,
     path::PathBuf,
     sync::mpsc::{channel, Receiver, Sender},
     thread::{self, JoinHandle},
@@ -324,20 +324,20 @@ where
                 err: E,
                 tolerance: &Tolerance,
                 invalid: &mut Vec<PathBuf>,
-            ) -> Option<E> {
+            ) -> Result<(), E> {
                 match tolerance {
                     Tolerance::StopOnErrors => {
                         error!("entry: {}; error: {err}", path.display());
-                        Some(E::Bound(path, Box::new(err)))
+                        Err(E::Bound(path, Box::new(err)))
                     }
                     Tolerance::LogErrors => {
                         warn!("entry: {}; error: {err}", path.display());
                         invalid.push(path);
-                        None
+                        Ok(())
                     }
                     Tolerance::DoNotLogErrors => {
                         invalid.push(path);
-                        None
+                        Ok(())
                     }
                 }
             }
@@ -352,14 +352,20 @@ where
                 let mut jobs = Vec::new();
                 while jobs.len() < paths_per_jobs && !paths.is_empty() {
                     let path = paths.remove(0);
+                    if !path.exists() {
+                        check_err(
+                            path,
+                            io::Error::new(io::ErrorKind::NotFound, "File not found").into(),
+                            tolerance,
+                            invalid,
+                        )?;
+                        continue;
+                    }
                     let h = match hasher.setup() {
                         Ok(h) => h,
                         Err(err) => {
-                            if let Some(err) = check_err(path, err.into(), tolerance, invalid) {
-                                return Err(err);
-                            } else {
-                                continue;
-                            }
+                            check_err(path, err.into(), tolerance, invalid)?;
+                            continue;
                         }
                     };
                     let r = reader.bind(&path);
@@ -421,8 +427,7 @@ where
                         }
                     }
                     Action::Error(path, err) => {
-                        let mut err: Option<E> = check_err(path, err, &tolerance, &mut invalid);
-                        if let Some(err) = err.take() {
+                        if let Err(err) = check_err(path, err, &tolerance, &mut invalid) {
                             break 'outer Err(err);
                         }
                     }
