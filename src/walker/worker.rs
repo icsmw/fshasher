@@ -1,8 +1,7 @@
-use super::{Action, HasherWrapper, ReaderWrapper, ReadingStrategy, E};
+use super::{Action, ReadingStrategy, E};
 use crate::{breaker::Breaker, Hasher, Reader};
 use log::{debug, error};
 use std::{
-    io::Read,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -14,7 +13,7 @@ use std::{
 
 const BUFFER_SIZE: usize = 1024 * 32;
 
-pub type Job<H, R> = (PathBuf, HasherWrapper<H>, ReaderWrapper<R>);
+pub type Job<H, R> = (PathBuf, H, R);
 
 /// Represents tasks for the `Worker` to perform.
 enum Task<H: Hasher, R: Reader> {
@@ -161,18 +160,18 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
 ///
 /// # Returns
 ///
-/// - `Result<HasherWrapper<H>, E>`: The resulting hasher instance with the file's hash or an error if the operation fails.
+/// - `Result<H, E>`: The resulting hasher instance with the file's hash or an error if the operation fails.
 ///
 /// # Errors
 ///
 /// This function will return an error if the operation is interrupted or if there is an issue with reading the file.
 fn hash_file<H: Hasher, R: Reader>(
     path: &Path,
-    mut hasher: HasherWrapper<H>,
-    mut reader: ReaderWrapper<R>,
+    mut hasher: H,
+    mut reader: R,
     reading_strategy: &ReadingStrategy,
     breaker: &Breaker,
-) -> Result<HasherWrapper<H>, E> {
+) -> Result<H, E> {
     if breaker.is_aborted() {
         return Err(E::Aborted);
     }
@@ -191,16 +190,18 @@ fn hash_file<H: Hasher, R: Reader>(
                     if bytes_read == 0 {
                         break;
                     }
-                    hasher.absorb(&buffer[..bytes_read])?;
+                    hasher.absorb(&buffer[..bytes_read]).map_err(Into::into)?;
                 }
             }
             ReadingStrategy::Complete => {
                 let mut buffer = Vec::new();
                 reader.read_to_end(&mut buffer)?;
-                hasher.absorb(&buffer)?
+                hasher.absorb(&buffer).map_err(Into::into)?
             }
             ReadingStrategy::MemoryMapped => {
-                hasher.absorb(reader.mmap()?)?;
+                hasher
+                    .absorb(reader.mmap().map_err(Into::into)?)
+                    .map_err(Into::into)?;
             }
             ReadingStrategy::Scenario(..) => {
                 return Err(E::NestedScenarioStrategy);
@@ -227,6 +228,6 @@ fn hash_file<H: Hasher, R: Reader>(
             apply(strategy)?;
         }
     };
-    hasher.finish()?;
+    hasher.finish().map_err(Into::into)?;
     Ok(hasher)
 }

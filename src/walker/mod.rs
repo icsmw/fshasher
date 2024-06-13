@@ -7,8 +7,6 @@ mod worker;
 use crate::{
     collector::collect,
     entry::{Entry, Filter},
-    hasher::HasherWrapper,
-    reader::ReaderWrapper,
     Breaker, Hasher, Reader, Tolerance,
 };
 pub use error::E;
@@ -36,9 +34,9 @@ pub enum Action<H: Hasher> {
     ///
     /// # Parameters
     ///
-    /// - `Vec<(PathBuf, HasherWrapper<H>)>`: A vector of tuples where each tuple contains
+    /// - `Vec<(PathBuf, H)>`: A vector of tuples where each tuple contains
     ///   a file path and its corresponding hash.
-    Processed(Vec<(PathBuf, HasherWrapper<H>)>),
+    Processed(Vec<(PathBuf, H)>),
 
     /// Used by workers to notify `Walker` about the closing of a worker's thread.
     WorkerShutdownNotification,
@@ -114,13 +112,13 @@ pub struct Walker<H: Hasher, R: Reader> {
     /// if the tolerance level is set to `Tolerance::StopOnErrors`.
     invalid: Vec<PathBuf>,
     /// Collection of hashes for each file. Populated when `hash()` is called.
-    hashes: Vec<(PathBuf, HasherWrapper<H>)>,
+    hashes: Vec<(PathBuf, H)>,
     /// The resulting hash. Set when `hash()` is called.
-    hash: Option<HasherWrapper<H>>,
+    hash: Option<H>,
     /// An instance of the hasher for hashing each file.
-    hasher: HasherWrapper<H>,
+    hasher: H,
     /// An instance of the reader for reading each file.
-    reader: ReaderWrapper<R>,
+    reader: R,
     /// An instance of the channel for tracking the progress of path collection and hashing.
     progress: Option<ProgressChannel>,
 }
@@ -146,8 +144,8 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
             invalid: Vec::new(),
             hashes: Vec::new(),
             hash: None,
-            hasher: HasherWrapper::new(hasher),
-            reader: ReaderWrapper::new(reader),
+            hasher,
+            reader,
             progress,
         }
     }
@@ -315,14 +313,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
         let paths_per_jobs =
             ((total as f64 * 0.05).ceil() as usize).clamp(MIN_PATHS_PER_JOB, MAX_PATHS_PER_JOB);
 
-        type HashingResult<T> = Result<
-            (
-                HasherWrapper<T>,
-                Vec<(PathBuf, HasherWrapper<T>)>,
-                Vec<PathBuf>,
-            ),
-            E,
-        >;
+        type HashingResult<T> = Result<(T, Vec<(PathBuf, T)>, Vec<PathBuf>), E>;
         let handle: JoinHandle<HashingResult<H>> = thread::spawn(move || {
             fn check_err(
                 path: PathBuf,
@@ -349,8 +340,8 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
             fn get_next_job<H: Hasher, R: Reader>(
                 paths: &mut Vec<PathBuf>,
                 paths_per_jobs: usize,
-                reader: &ReaderWrapper<R>,
-                hasher: &HasherWrapper<H>,
+                reader: &R,
+                hasher: &H,
                 tolerance: &Tolerance,
                 invalid: &mut Vec<PathBuf>,
             ) -> Result<Vec<Job<H, R>>, E> {
@@ -360,7 +351,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                     let h = match hasher.setup() {
                         Ok(h) => h,
                         Err(err) => {
-                            if let Some(err) = check_err(path, err, tolerance, invalid) {
+                            if let Some(err) = check_err(path, err.into(), tolerance, invalid) {
                                 return Err(err);
                             } else {
                                 continue;
@@ -372,11 +363,11 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                 }
                 Ok(jobs)
             }
-            let mut summary = hasher.setup()?;
+            let mut summary = hasher.setup().map_err(Into::into)?;
             let mut invalid: Vec<PathBuf> = Vec::new();
             let mut no_jobs = true;
             for worker in workers.iter() {
-                let jobs: Vec<(PathBuf, HasherWrapper<H>, ReaderWrapper<R>)> = get_next_job(
+                let jobs: Vec<(PathBuf, H, R)> = get_next_job(
                     &mut paths,
                     paths_per_jobs,
                     &reader,
@@ -393,7 +384,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
             let mut hashes = Vec::new();
             if no_jobs {
                 workers.shutdown().wait();
-                summary.finish()?;
+                summary.finish().map_err(Into::into)?;
                 return Ok((summary, hashes, invalid));
             }
             let mut waiting_for_shutdown = false;
@@ -438,7 +429,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                     continue;
                 }
                 'delegate: for worker in workers.iter() {
-                    let jobs: Vec<(PathBuf, HasherWrapper<H>, ReaderWrapper<R>)> = get_next_job(
+                    let jobs: Vec<(PathBuf, H, R)> = get_next_job(
                         &mut paths,
                         paths_per_jobs,
                         &reader,
@@ -460,9 +451,11 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
             } else {
                 hashes.sort_by(|(a, _), (b, _)| a.cmp(b));
                 for (_, hash) in hashes.iter() {
-                    summary.absorb(hash.hash()?)?;
+                    summary
+                        .absorb(hash.hash().map_err(Into::into)?)
+                        .map_err(Into::into)?;
                 }
-                summary.finish()?;
+                summary.finish().map_err(Into::into)?;
                 Ok((summary, hashes, invalid))
             }
         });
@@ -475,7 +468,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
         self.invalid.append(&mut invalid);
         self.progress = opt.progress.map(Progress::channel);
         let hash = if let Some(ref hash) = self.hash {
-            hash.hash()?
+            hash.hash().map_err(Into::into)?
         } else {
             unreachable!("Hash has been stored");
         };
@@ -513,7 +506,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
 
 /// An iterator over the calculated hashes in a `Walker`.
 ///
-/// `WalkerIter` is used to iterate over the `(PathBuf, HasherWrapper<H>)` pairs that
+/// `WalkerIter` is used to iterate over the `(PathBuf, H)` pairs that
 /// represent the paths and their corresponding hashes calculated by the `Walker`.
 pub struct WalkerIter<'a, H: Hasher, R: Reader> {
     /// A reference to the `Walker` instance.
@@ -523,13 +516,13 @@ pub struct WalkerIter<'a, H: Hasher, R: Reader> {
 }
 
 impl<'a, H: Hasher, R: Reader> Iterator for WalkerIter<'a, H, R> {
-    type Item = &'a (PathBuf, HasherWrapper<H>);
+    type Item = &'a (PathBuf, H);
 
-    /// Advances the iterator and returns the next `(PathBuf, HasherWrapper<H>)` pair.
+    /// Advances the iterator and returns the next `(PathBuf, H)` pair.
     ///
     /// # Returns
     ///
-    /// - `Some(&(PathBuf, HasherWrapper<H>))` if there is another hash to return.
+    /// - `Some(&(PathBuf, H))` if there is another hash to return.
     /// - `None` if there are no more hashes to return.
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos >= self.walker.hashes.len() {
@@ -542,7 +535,7 @@ impl<'a, H: Hasher, R: Reader> Iterator for WalkerIter<'a, H, R> {
 }
 
 impl<'a, H: Hasher, R: Reader> IntoIterator for &'a Walker<H, R> {
-    type Item = &'a (PathBuf, HasherWrapper<H>);
+    type Item = &'a (PathBuf, H);
     type IntoIter = WalkerIter<'a, H, R>;
 
     /// Creates an iterator over the calculated hashes in the `Walker`.

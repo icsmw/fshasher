@@ -16,7 +16,7 @@ use crate::walker;
 /// - Drop the instance of `Reader`.
 pub trait Reader: Read + Send + Sync {
     /// The type of error that can occur during operations.
-    type Error: error::Error;
+    type Error: error::Error + Into<walker::E>;
 
     /// Binds the reader to the specified file path.
     ///
@@ -50,68 +50,4 @@ pub trait Reader: Read + Send + Sync {
     /// - `Result<&[u8], Self::Error>`: On success, returns a reference to the memory-mapped data.
     ///   On failure, returns an error of type `Self::Error`.
     fn mmap(&mut self) -> Result<&[u8], Self::Error>;
-}
-
-/// A wrapper for the `Reader` trait that provides additional functionality.
-/// `Reader` isn't used directly in `Walker`. Instead, `Walker` uses `ReaderWrapper`,
-/// which helps better manage error handling.
-#[derive(Debug)]
-pub struct ReaderWrapper<T: Reader + Send + Sync> {
-    inner: T,
-}
-
-impl<T: Reader + Send + Sync> ReaderWrapper<T> {
-    /// Creates a new `ReaderWrapper` instance.
-    ///
-    /// # Parameters
-    ///
-    /// - `inner`: The inner reader instance.
-    ///
-    /// # Returns
-    ///
-    /// - `ReaderWrapper<T>`: A new `ReaderWrapper` instance.
-    pub fn new(inner: T) -> Self {
-        ReaderWrapper { inner }
-    }
-
-    /// Binds the inner reader to the specified file path.
-    ///
-    /// # Parameters
-    ///
-    /// - `path`: A reference to a path that the inner reader will be bound to.
-    ///
-    /// # Returns
-    ///
-    /// - `Result<Self, walker::E>`: On success, returns a new `ReaderWrapper` instance with the bound reader.
-    ///   On failure, returns an error of type `walker::E`.
-    pub fn bind<P: AsRef<Path>>(&self, path: P) -> Self
-    where
-        Self: Sized,
-    {
-        ReaderWrapper {
-            inner: self.inner.bind(path),
-        }
-    }
-
-    /// Memory-maps the file for reading using the inner reader.
-    ///
-    /// # Returns
-    ///
-    /// - `Result<&[u8], walker::E>`: On success, returns a reference to the memory-mapped data.
-    ///   On failure, returns an error of type `walker::E`.
-    pub fn mmap(&mut self) -> Result<&[u8], walker::E> {
-        self.inner.mmap().map_err(walker::E::reader)
-    }
-}
-
-impl<T: Reader + Send + Sync> Clone for ReaderWrapper<T> {
-    fn clone(&self) -> Self {
-        Self::new(self.inner.clone())
-    }
-}
-
-impl<T: Reader + Send + Sync> Read for ReaderWrapper<T> {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.inner.read(buf)
-    }
 }
