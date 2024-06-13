@@ -151,7 +151,7 @@ impl Worker {
                     break 'outer;
                 }
             }
-            available_inner.store(false, Ordering::Relaxed);
+            available_inner.store(false, Ordering::SeqCst);
             debug!("Paths collector worker has been shut down");
         });
         Self {
@@ -177,7 +177,7 @@ impl Worker {
     ///
     /// - `bool`: `true` if the worker is available, `false` otherwise.
     pub fn is_available(&self) -> bool {
-        self.available.load(Ordering::Relaxed)
+        self.available.load(Ordering::SeqCst)
     }
 
     /// Delegates a task to read a path to the worker.

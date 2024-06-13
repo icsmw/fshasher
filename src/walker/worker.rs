@@ -105,7 +105,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
                     break 'outer;
                 }
             }
-            available_inner.store(false, Ordering::Relaxed);
+            available_inner.store(false, Ordering::SeqCst);
             if tx_queue.send(Action::WorkerShutdownNotification).is_err() {
                 error!("Hasher worker cannot communicate with pool. Channel error. Worker will be closed");
             }
@@ -124,7 +124,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
     ///
     /// - `bool`: `true` if the worker is available, `false` otherwise.
     pub fn is_available(&self) -> bool {
-        self.available.load(Ordering::Relaxed)
+        self.available.load(Ordering::SeqCst)
     }
 
     /// Delegates a task to read a vector of file paths to the worker.

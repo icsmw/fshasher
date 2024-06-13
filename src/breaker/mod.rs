@@ -29,7 +29,7 @@ impl Breaker {
     ///
     /// This method is typically used internally within the `Walker`.
     pub(crate) fn reset(&mut self) {
-        self.state.store(false, Ordering::Relaxed)
+        self.state.store(false, Ordering::SeqCst)
     }
 
     /// Returns a closure that, when called, will abort the operation.
@@ -39,7 +39,7 @@ impl Breaker {
     /// - A closure that sets the internal state to `true`, indicating that an abort has been requested.
     pub fn breaker(&self) -> impl Fn() {
         let signal = self.state.clone();
-        move || signal.store(true, Ordering::Relaxed)
+        move || signal.store(true, Ordering::SeqCst)
     }
 
     /// Checks if the operation has been aborted.
@@ -48,11 +48,11 @@ impl Breaker {
     ///
     /// - `true` if the operation has been aborted, `false` otherwise.
     pub fn is_aborted(&self) -> bool {
-        self.state.load(Ordering::Relaxed)
+        self.state.load(Ordering::SeqCst)
     }
 
     /// Aborts the operation by setting the internal state to `true`.
     pub fn abort(&self) {
-        self.state.store(true, Ordering::Relaxed)
+        self.state.store(true, Ordering::SeqCst)
     }
 }
