@@ -1,6 +1,6 @@
 use super::{Action, ReadingStrategy, E};
 use crate::{breaker::Breaker, Hasher, Reader};
-use log::{debug, error};
+use log::error;
 use std::{
     path::{Path, PathBuf},
     sync::{
@@ -109,7 +109,6 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
             if tx_queue.send(Action::WorkerShutdownNotification).is_err() {
                 error!("Hasher worker cannot communicate with pool. Channel error. Worker will be closed");
             }
-            debug!("Hasher worker has been shut down");
         });
         Self {
             tx_task,

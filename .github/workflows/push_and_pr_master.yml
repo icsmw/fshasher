@@ -40,8 +40,8 @@ jobs:
       - name: Run tests (dev)
         run: cargo test -- --nocapture
         env:
-          RUST_LOG: "error"
+          RUST_LOG: "debug"
       - name: Run tests (release)
         run: cargo test --release -- --nocapture
         env:
-          RUST_LOG: "error"
+          RUST_LOG: "debug"

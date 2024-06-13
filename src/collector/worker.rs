@@ -1,7 +1,7 @@
 use super::Action;
 
 use crate::{breaker::Breaker, entry::Entry};
-use log::{debug, error};
+use log::error;
 use std::{
     fs::{read_dir, read_link},
     path::PathBuf,
@@ -152,7 +152,6 @@ impl Worker {
                 }
             }
             available_inner.store(false, Ordering::SeqCst);
-            debug!("Paths collector worker has been shut down");
         });
         Self {
             tx_task,
