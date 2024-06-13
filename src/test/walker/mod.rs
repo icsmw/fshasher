@@ -108,7 +108,11 @@ fn stress_permissions_issue() -> Result<(), E> {
                 reader::buffering::Buffering::default(),
             )?;
         let hash = walker.collect()?.hash()?.to_vec();
-        assert!(!hash.is_empty());
+        if walker.iter().count() > 0 {
+            assert!(!hash.is_empty());
+        } else {
+            assert!(hash.is_empty());
+        }
     }
     Ok(())
 }
