@@ -7,6 +7,7 @@ use std::{slice::Iter, sync::mpsc::Sender};
 /// As soon as the worker completes all given paths, it returns a vector of file paths with hashes to the `Walker`.
 pub struct Pool<H: Hasher, R: Reader> {
     workers: Vec<Worker<H, R>>,
+    shutdowning: bool,
 }
 
 impl<H: Hasher + 'static, R: Reader + 'static> Pool<H, R>
@@ -48,7 +49,10 @@ where
                 breaker.clone(),
             ));
         }
-        Self { workers }
+        Self {
+            workers,
+            shutdowning: false,
+        }
     }
 
     /// Returns an iterator over the workers.
@@ -80,10 +84,17 @@ where
     ///
     /// - `&mut Self`: The modified `Pool` instance.
     pub fn shutdown(&mut self) -> &mut Self {
-        for worker in self.workers.iter() {
-            worker.shutdown();
+        if !self.shutdowning {
+            for worker in self.workers.iter() {
+                worker.shutdown();
+            }
+            self.shutdowning = true;
         }
         self
+    }
+
+    pub fn is_shutdowning(&self) -> bool {
+        self.shutdowning
     }
 
     /// Waits for all workers to shut down.

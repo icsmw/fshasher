@@ -317,6 +317,7 @@ where
             ((total as f64 * 0.05).ceil() as usize).clamp(MIN_PATHS_PER_JOB, MAX_PATHS_PER_JOB);
 
         type HashingResult<T> = Result<(T, Vec<(PathBuf, T)>, Vec<PathBuf>), E>;
+
         let handle: JoinHandle<HashingResult<H>> = thread::spawn(move || {
             fn check_err(
                 path: PathBuf,
@@ -390,18 +391,17 @@ where
                 summary.finish()?;
                 return Ok((summary, hashes, invalid));
             }
-            let mut waiting_for_shutdown = false;
             let mut pending: Option<Action<H>> = None;
-            'outer: loop {
+            let outer: Result<(), E> = 'outer: loop {
                 let next = if let Some(next) = pending.take() {
                     next
                 } else if let Ok(next) = rx_queue.recv() {
                     next
                 } else {
-                    break 'outer;
+                    break 'outer Ok(());
                 };
                 if breaker.is_aborted() {
-                    break 'outer;
+                    break 'outer Err(E::Aborted);
                 }
                 match next {
                     Action::Processed(mut processed) => {
@@ -416,19 +416,18 @@ where
                                 pending = Some(next);
                                 continue;
                             } else {
-                                break 'outer;
+                                break 'outer Ok(());
                             }
                         }
                     }
                     Action::Error(path, err) => {
                         let mut err: Option<E> = check_err(path, err, &tolerance, &mut invalid);
                         if let Some(err) = err.take() {
-                            workers.shutdown().wait();
-                            return Err(err);
+                            break 'outer Err(err);
                         }
                     }
                 }
-                if waiting_for_shutdown {
+                if workers.is_shutdowning() {
                     continue;
                 }
                 'delegate: for worker in workers.iter() {
@@ -441,16 +440,15 @@ where
                         &mut invalid,
                     )?;
                     if jobs.is_empty() {
-                        waiting_for_shutdown = true;
                         workers.shutdown();
                         break 'delegate;
                     }
                     worker.delegate(jobs);
                 }
-            }
+            };
             workers.shutdown().wait();
-            if breaker.is_aborted() {
-                Err(E::Aborted)
+            if let Err(err) = outer {
+                Err(err)
             } else {
                 hashes.sort_by(|(a, _), (b, _)| a.cmp(b));
                 for (_, hash) in hashes.iter() {
