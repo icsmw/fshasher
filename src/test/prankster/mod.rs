@@ -1,3 +1,5 @@
+use std::thread;
+
 use crate::{
     collector::Tolerance, entry::Entry, error::E, hasher, reader, test::usecase::*, Options,
     ReadingStrategy,
@@ -33,9 +35,13 @@ fn with_one_thread() -> Result<(), E> {
 #[test]
 fn with_custom_number_threads() -> Result<(), E> {
     let usecase = UseCase::unnamed(2, 2, 2, &[])?;
+    let cores = thread::available_parallelism()
+        .ok()
+        .map(|n| n.get())
+        .unwrap();
     let mut walker = Options::new()
         .entry(Entry::from(&usecase.root)?)?
-        .threads(5)?
+        .threads(cores)?
         .walker(
             hasher::blake::Blake::default(),
             reader::buffering::Buffering::default(),
