@@ -1,5 +1,5 @@
 use super::{Action, ReadingStrategy, Worker};
-use crate::{breaker::Breaker, Hasher, Reader};
+use crate::{breaker::Breaker, walker, Hasher, Reader};
 use std::{slice::Iter, sync::mpsc::Sender};
 
 /// Created by the `Walker` function to manage available workers. Each worker takes a vector of file paths and manages the calculation of their hashes.
@@ -9,7 +9,10 @@ pub struct Pool<H: Hasher, R: Reader> {
     workers: Vec<Worker<H, R>>,
 }
 
-impl<H: Hasher + 'static, R: Reader + 'static> Pool<H, R> {
+impl<H: Hasher + 'static, R: Reader + 'static> Pool<H, R>
+where
+    walker::E: From<<R as Reader>::Error> + From<<H as Hasher>::Error>,
+{
     /// Creates a new `Pool` with the specified number of workers.
     ///
     /// # Parameters

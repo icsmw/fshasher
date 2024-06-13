@@ -236,7 +236,10 @@ impl Options {
         self,
         hasher: H,
         reader: R,
-    ) -> Result<Walker<H, R>, E> {
+    ) -> Result<Walker<H, R>, E>
+    where
+        E: From<<H as Hasher>::Error> + From<<R as Reader>::Error>,
+    {
         Ok(Walker::new(self, hasher, reader))
     }
 }

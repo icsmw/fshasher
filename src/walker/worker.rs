@@ -56,7 +56,10 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
         tx_queue: Sender<Action<H>>,
         reading_strategy: ReadingStrategy,
         breaker: Breaker,
-    ) -> Self {
+    ) -> Self
+    where
+        E: From<<R as Reader>::Error> + From<<H as Hasher>::Error>,
+    {
         let (tx_task, rx_task): TaskChannel<H, R> = channel();
         let available: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
         let available_inner = available.clone();
@@ -171,7 +174,10 @@ fn hash_file<H: Hasher, R: Reader>(
     mut reader: R,
     reading_strategy: &ReadingStrategy,
     breaker: &Breaker,
-) -> Result<H, E> {
+) -> Result<H, E>
+where
+    E: From<<R as Reader>::Error> + From<<H as Hasher>::Error>,
+{
     if breaker.is_aborted() {
         return Err(E::Aborted);
     }
@@ -190,18 +196,16 @@ fn hash_file<H: Hasher, R: Reader>(
                     if bytes_read == 0 {
                         break;
                     }
-                    hasher.absorb(&buffer[..bytes_read]).map_err(Into::into)?;
+                    hasher.absorb(&buffer[..bytes_read])?;
                 }
             }
             ReadingStrategy::Complete => {
                 let mut buffer = Vec::new();
                 reader.read_to_end(&mut buffer)?;
-                hasher.absorb(&buffer).map_err(Into::into)?
+                hasher.absorb(&buffer)?
             }
             ReadingStrategy::MemoryMapped => {
-                hasher
-                    .absorb(reader.mmap().map_err(Into::into)?)
-                    .map_err(Into::into)?;
+                hasher.absorb(reader.mmap()?)?;
             }
             ReadingStrategy::Scenario(..) => {
                 return Err(E::NestedScenarioStrategy);
@@ -228,6 +232,6 @@ fn hash_file<H: Hasher, R: Reader>(
             apply(strategy)?;
         }
     };
-    hasher.finish().map_err(Into::into)?;
+    hasher.finish()?;
     Ok(hasher)
 }

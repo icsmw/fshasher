@@ -123,7 +123,10 @@ pub struct Walker<H: Hasher, R: Reader> {
     progress: Option<ProgressChannel>,
 }
 
-impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
+impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R>
+where
+    E: From<<H as Hasher>::Error> + From<<R as Reader>::Error>,
+{
     /// Creates a new instance of `Walker`.
     ///
     /// # Parameters
@@ -363,7 +366,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
                 }
                 Ok(jobs)
             }
-            let mut summary = hasher.setup().map_err(Into::into)?;
+            let mut summary = hasher.setup()?;
             let mut invalid: Vec<PathBuf> = Vec::new();
             let mut no_jobs = true;
             for worker in workers.iter() {
@@ -384,7 +387,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
             let mut hashes = Vec::new();
             if no_jobs {
                 workers.shutdown().wait();
-                summary.finish().map_err(Into::into)?;
+                summary.finish()?;
                 return Ok((summary, hashes, invalid));
             }
             let mut waiting_for_shutdown = false;
@@ -451,11 +454,9 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
             } else {
                 hashes.sort_by(|(a, _), (b, _)| a.cmp(b));
                 for (_, hash) in hashes.iter() {
-                    summary
-                        .absorb(hash.hash().map_err(Into::into)?)
-                        .map_err(Into::into)?;
+                    summary.absorb(hash.hash()?)?;
                 }
-                summary.finish().map_err(Into::into)?;
+                summary.finish()?;
                 Ok((summary, hashes, invalid))
             }
         });
@@ -468,7 +469,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R> {
         self.invalid.append(&mut invalid);
         self.progress = opt.progress.map(Progress::channel);
         let hash = if let Some(ref hash) = self.hash {
-            hash.hash().map_err(Into::into)?
+            hash.hash()?
         } else {
             unreachable!("Hash has been stored");
         };
