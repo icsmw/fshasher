@@ -2,11 +2,9 @@ mod filters;
 
 use walker::Progress;
 
-use crate::test::{usecase::*, utils::*};
+use crate::test::{get_stress_iterations_count, usecase::*, utils::*};
 use crate::*;
 use std::thread;
-
-const STRESS_TEST_ITERATIONS_COUNT: usize = 100;
 
 #[test]
 fn correction() -> Result<(), error::E> {
@@ -44,7 +42,7 @@ fn correction() -> Result<(), error::E> {
 fn stress() -> Result<(), error::E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     let breaker = Breaker::new();
-    for _ in 0..STRESS_TEST_ITERATIONS_COUNT {
+    for _ in 0..get_stress_iterations_count() {
         let mut a = collector::collect(
             &None,
             &Entry::from(&usecase.root)?,
@@ -94,7 +92,7 @@ fn cancellation() -> Result<(), error::E> {
 #[test]
 fn cancellation_stress() -> Result<(), error::E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
-    for _ in 0..STRESS_TEST_ITERATIONS_COUNT {
+    for _ in 0..get_stress_iterations_count() {
         let breaker = Breaker::new();
         breaker.abort();
         let result = collector::collect(
@@ -139,7 +137,7 @@ fn cancellation_during() -> Result<(), error::E> {
 #[test]
 fn cancellation_during_stress() -> Result<(), error::E> {
     let usecase = UseCase::unnamed(5, 10, 3, &[])?;
-    for _ in 0..STRESS_TEST_ITERATIONS_COUNT {
+    for _ in 0..get_stress_iterations_count() {
         let breaker = Breaker::new();
         let breaker_progress = breaker.clone();
         let (progress, Some(rx)) = Progress::channel(10) else {

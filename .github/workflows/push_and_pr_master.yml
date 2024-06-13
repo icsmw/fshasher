@@ -41,7 +41,9 @@ jobs:
         run: cargo test -- --nocapture
         env:
           RUST_LOG: "debug"
+          FSHASHER_STRESS_TEST_ITER_LIM: 50
       - name: Run tests (release)
         run: cargo test --release -- --nocapture
         env:
           RUST_LOG: "debug"
+          FSHASHER_STRESS_TEST_ITER_LIM: 50

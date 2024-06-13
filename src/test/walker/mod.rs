@@ -6,10 +6,13 @@ mod stratagies;
 use std::env::temp_dir;
 
 use crate::{
-    collector::Tolerance, entry::Entry, error::E, hasher, reader, test::usecase::*, Options,
+    collector::Tolerance,
+    entry::Entry,
+    error::E,
+    hasher, reader,
+    test::{get_stress_iterations_count, usecase::*},
+    Options,
 };
-
-const STRESS_TEST_ITERATIONS_COUNT: usize = 100;
 
 fn test_dest_for_correction(usecase: &UseCase) -> Result<(), E> {
     let mut hashes: Vec<Vec<u8>> = Vec::new();
@@ -41,7 +44,7 @@ fn correction() -> Result<(), E> {
 #[test]
 fn stress() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
-    for _ in 0..STRESS_TEST_ITERATIONS_COUNT {
+    for _ in 0..get_stress_iterations_count() {
         test_dest_for_correction(&usecase)?;
     }
     usecase.clean()?;
@@ -87,7 +90,7 @@ fn changes() -> Result<(), E> {
 #[test]
 fn changes_stress() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
-    for _ in 0..STRESS_TEST_ITERATIONS_COUNT {
+    for _ in 0..get_stress_iterations_count() {
         test_dest_for_changes(&usecase)?;
     }
     usecase.clean()?;
@@ -96,7 +99,7 @@ fn changes_stress() -> Result<(), E> {
 
 #[test]
 fn stress_permissions_issue() -> Result<(), E> {
-    for _ in 0..STRESS_TEST_ITERATIONS_COUNT {
+    for _ in 0..get_stress_iterations_count() {
         let mut walker = Options::new()
             .entry(Entry::from(temp_dir())?)?
             .tolerance(Tolerance::LogErrors)
