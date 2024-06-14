@@ -25,7 +25,7 @@ pub trait Hasher: Send + Sync {
     ///
     /// - `Result<Self, Self::Error>`: On success, returns an instance of the hasher. On failure,
     ///   returns an error of type `Self::Error`.
-    fn setup(&self) -> Result<Self, Self::Error>
+    fn new() -> Self
     where
         Self: Sized;
 

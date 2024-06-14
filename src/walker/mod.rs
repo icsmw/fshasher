@@ -303,18 +303,13 @@ where
             }
         }
         let threads = opt.threads.unwrap_or(cores);
-        let hasher = Arc::new(RwLock::new(self.hasher.clone()));
-        let reader = Arc::new(RwLock::new(R::unbound()));
         let mut pool: Pool = Pool::new::<H, R>(
             threads,
             tx_queue.clone(),
             &opt.reading_strategy,
             &opt.tolerance,
             &self.breaker,
-            &hasher,
-            &reader,
         );
-        let hasher = self.hasher.clone();
         debug!("Created pool with {threads} workers for hashing");
         let mut paths = mem::take(&mut self.paths);
         let total = paths.len();
@@ -395,7 +390,7 @@ where
                 }
                 JobCollecting::Success
             }
-            let mut summary = hasher.setup()?;
+            let mut summary = H::new();
             let mut hashes: Vec<HashItem> = Vec::new();
             let initialization = deligate(
                 pool.workers(),

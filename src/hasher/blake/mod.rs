@@ -29,11 +29,11 @@ impl Blake {
 
 impl Hasher for Blake {
     type Error = E;
-    fn setup(&self) -> Result<Self, Self::Error>
+    fn new() -> Self
     where
         Self: Sized,
     {
-        Ok(Self::new())
+        Self::new()
     }
     fn hash(&self) -> Result<&[u8], E> {
         Ok(self.hash.as_ref().ok_or(E::NotFinished)?.as_bytes())

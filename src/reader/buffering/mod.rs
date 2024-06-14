@@ -19,7 +19,7 @@ impl Reader for Buffering {
     fn unbound() -> Self {
         Self::default()
     }
-    fn bind<P: AsRef<Path>>(&self, path: P) -> Self
+    fn bound<P: AsRef<Path>>(path: P) -> Self
     where
         Self: Sized,
     {

@@ -27,9 +27,8 @@ pub trait Reader: Read + Send + Sync {
     ///
     /// # Returns
     ///
-    /// - `Result<Self, Self::Error>`: On success, returns an instance of the reader. On failure,
-    ///   returns an error of type `Self::Error`.
-    fn bind<P: AsRef<Path>>(&self, path: P) -> Self
+    /// - `Self`: returns an instance of the reader bound with filename.
+    fn bound<P: AsRef<Path>>(path: P) -> Self
     where
         Self: Sized;
 

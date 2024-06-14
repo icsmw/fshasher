@@ -1,9 +1,6 @@
 use super::{Action, ReadingStrategy, Worker};
 use crate::{breaker::Breaker, walker, Hasher, Reader, Tolerance};
-use std::{
-    slice::Iter,
-    sync::{mpsc::Sender, Arc, RwLock},
-};
+use std::{slice::Iter, sync::mpsc::Sender};
 
 /// Created by the `Walker` function to manage available workers. Each worker takes a vector of file paths and manages the calculation of their hashes.
 /// To calculate a hash, the worker reads the file with the given reader and provides the file's content to the hasher, which returns the hash of the file.
@@ -42,21 +39,17 @@ impl Pool {
         reading_strategy: &ReadingStrategy,
         tolerance: &Tolerance,
         breaker: &Breaker,
-        hasher: &Arc<RwLock<H>>,
-        reader: &Arc<RwLock<R>>,
     ) -> Self
     where
         walker::E: From<<R as Reader>::Error> + From<<H as Hasher>::Error>,
     {
         let mut workers: Vec<Worker> = Vec::new();
         for _ in 0..count {
-            workers.push(Worker::run(
+            workers.push(Worker::run::<H, R>(
                 tx_queue.clone(),
                 reading_strategy.clone(),
                 tolerance.clone(),
                 breaker.clone(),
-                hasher.clone(),
-                reader.clone(),
             ));
         }
         Self {

@@ -6,7 +6,7 @@ use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc::{channel, Receiver, Sender},
-        Arc, RwLock,
+        Arc,
     },
     thread::{self, JoinHandle},
 };
@@ -55,8 +55,6 @@ impl Worker {
         reading_strategy: ReadingStrategy,
         tolerance: Tolerance,
         breaker: Breaker,
-        hasher: Arc<RwLock<H>>,
-        reader: Arc<RwLock<R>>,
     ) -> Self
     where
         E: From<<R as Reader>::Error> + From<<H as Hasher>::Error>,
@@ -94,13 +92,7 @@ impl Worker {
                     if breaker.is_aborted() {
                         break 'outer;
                     }
-                    match hash_file(
-                        &path,
-                        hasher.clone(),
-                        reader.clone(),
-                        &reading_strategy,
-                        &breaker,
-                    ) {
+                    match hash_file::<H, R>(&path, &reading_strategy, &breaker) {
                         Ok(hasher) => collected.push((path, hasher)),
                         Err(err) => {
                             if matches!(tolerance, Tolerance::StopOnErrors) {
@@ -180,8 +172,6 @@ impl Worker {
 /// This function will return an error if the operation is interrupted or if there is an issue with reading the file.
 fn hash_file<H: Hasher, R: Reader>(
     path: &Path,
-    hasher: Arc<RwLock<H>>,
-    reader: Arc<RwLock<R>>,
     reading_strategy: &ReadingStrategy,
     breaker: &Breaker,
 ) -> Result<Vec<u8>, E>
@@ -194,9 +184,8 @@ where
     if !path.exists() {
         return Err(E::FileDoesNotExists(path.to_path_buf()));
     }
-    let mut hasher = hasher.read()?.clone();
-    let mut reader = reader.read()?.bind(path);
-    hasher.setup()?;
+    let mut hasher = H::new();
+    let mut reader = R::bound(path);
     let mut apply = |reading_strategy: &ReadingStrategy| {
         match reading_strategy {
             ReadingStrategy::Buffer => {
