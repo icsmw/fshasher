@@ -1,5 +1,5 @@
 use super::{Action, ReadingStrategy, E};
-use crate::{breaker::Breaker, Hasher, Reader};
+use crate::{breaker::Breaker, Hasher, Reader, Tolerance};
 use log::error;
 use std::{
     path::{Path, PathBuf},
@@ -55,6 +55,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
     pub fn run(
         tx_queue: Sender<Action<H>>,
         reading_strategy: ReadingStrategy,
+        tolerance: Tolerance,
         breaker: Breaker,
     ) -> Self
     where
@@ -88,6 +89,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
                     }
                 };
                 let mut collected = Vec::new();
+                let mut reports: Vec<(PathBuf, E)> = Vec::new();
                 for (path, hasher, reader) in jobs.into_iter() {
                     if breaker.is_aborted() {
                         break 'outer;
@@ -95,13 +97,16 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
                     match hash_file(&path, hasher, reader, &reading_strategy, &breaker) {
                         Ok(hasher) => collected.push((path, hasher)),
                         Err(err) => {
-                            if report(Action::Error(path, err)).is_err() {
+                            if matches!(tolerance, Tolerance::StopOnErrors) {
+                                let _ = report(Action::Error(path, err));
                                 break 'outer;
+                            } else {
+                                reports.push((path, err));
                             }
                         }
                     };
                 }
-                if response(Action::Processed(collected)).is_err() {
+                if response(Action::Processed(collected, reports)).is_err() {
                     break 'outer;
                 }
             }

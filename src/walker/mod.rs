@@ -36,7 +36,7 @@ pub enum Action<H: Hasher> {
     ///
     /// - `Vec<(PathBuf, H)>`: A vector of tuples where each tuple contains
     ///   a file path and its corresponding hash.
-    Processed(Vec<(PathBuf, H)>),
+    Processed(Vec<(PathBuf, H)>, Vec<(PathBuf, E)>),
 
     /// Used by workers to notify `Walker` about the closing of a worker's thread.
     WorkerShutdownNotification,
@@ -306,6 +306,7 @@ where
             threads,
             tx_queue.clone(),
             &opt.reading_strategy,
+            &opt.tolerance,
             &self.breaker,
         );
         debug!("Created pool with {threads} workers for hashing");
@@ -410,7 +411,11 @@ where
                     break 'outer Err(E::Aborted);
                 }
                 match next {
-                    Action::Processed(mut processed) => {
+                    Action::Processed(mut processed, reports) => {
+                        for (path, err) in reports.into_iter() {
+                            // If error reported by Worker, it's already not Tolerance::StopOnErrors
+                            let _ = check_err(path, err, &tolerance, &mut invalid);
+                        }
                         hashes.append(&mut processed);
                         if let Some(ref progress) = progress {
                             progress.notify(JobType::Hashing, hashes.len(), total)

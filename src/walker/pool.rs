@@ -1,5 +1,5 @@
 use super::{Action, ReadingStrategy, Worker};
-use crate::{breaker::Breaker, walker, Hasher, Reader};
+use crate::{breaker::Breaker, walker, Hasher, Reader, Tolerance};
 use std::{slice::Iter, sync::mpsc::Sender};
 
 /// Created by the `Walker` function to manage available workers. Each worker takes a vector of file paths and manages the calculation of their hashes.
@@ -39,6 +39,7 @@ where
         count: usize,
         tx_queue: Sender<Action<H>>,
         reading_strategy: &ReadingStrategy,
+        tolerance: &Tolerance,
         breaker: &Breaker,
     ) -> Self {
         let mut workers: Vec<Worker<H, R>> = Vec::new();
@@ -46,6 +47,7 @@ where
             workers.push(Worker::run(
                 tx_queue.clone(),
                 reading_strategy.clone(),
+                tolerance.clone(),
                 breaker.clone(),
             ));
         }
