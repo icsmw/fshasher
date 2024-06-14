@@ -6,35 +6,33 @@ use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc::{channel, Receiver, Sender},
-        Arc,
+        Arc, RwLock,
     },
     thread::{self, JoinHandle},
 };
 
 const BUFFER_SIZE: usize = 1024 * 32;
 
-pub type Job<H, R> = (PathBuf, H, R);
-
 /// Represents tasks for the `Worker` to perform.
-enum Task<H: Hasher, R: Reader> {
-    /// Task to hash a vector of jobs (file path, hasher, reader).
-    Hash(Vec<Job<H, R>>),
+enum Task {
+    /// Task to hash a vector of files.
+    Hash(Vec<PathBuf>),
     /// Task to shut down the worker.
     Shutdown,
 }
 
-type TaskChannel<H, R> = (Sender<Task<H, R>>, Receiver<Task<H, R>>);
+type TaskChannel = (Sender<Task>, Receiver<Task>);
 
 /// `Worker` is used by `Walker` to read files and calculate hashes. `Worker` creates one thread and
 /// listens for incoming messages (`Task`). As a task, `Worker` receives a vector of files and assigns
 /// an instance of hasher and reader to each file.
-pub struct Worker<H: Hasher, R: Reader> {
-    tx_task: Sender<Task<H, R>>,
+pub struct Worker {
+    tx_task: Sender<Task>,
     available: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
 }
 
-impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
+impl Worker {
     /// Runs a new `Worker` instance.
     ///
     /// # Parameters
@@ -52,20 +50,22 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
     /// `Worker` doesn't stop the listener loop on IO errors (from hasher or reader), but reports the error
     /// to `Walker`.
 
-    pub fn run(
-        tx_queue: Sender<Action<H>>,
+    pub fn run<H: Hasher + 'static, R: Reader + 'static>(
+        tx_queue: Sender<Action>,
         reading_strategy: ReadingStrategy,
         tolerance: Tolerance,
         breaker: Breaker,
+        hasher: Arc<RwLock<H>>,
+        reader: Arc<RwLock<R>>,
     ) -> Self
     where
         E: From<<R as Reader>::Error> + From<<H as Hasher>::Error>,
     {
-        let (tx_task, rx_task): TaskChannel<H, R> = channel();
+        let (tx_task, rx_task): TaskChannel = channel();
         let available: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
         let available_inner = available.clone();
         let handle = thread::spawn(move || {
-            let response = |action: Action<H>| {
+            let response = |action: Action| {
                 tx_queue.send(action).map_err(|err| {
                     error!(
                         "Hasher worker cannot communicate with pool. Channel error. Worker will be closed"
@@ -73,7 +73,7 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
                     err
                 })
             };
-            let report = |action: Action<H>| {
+            let report = |action: Action| {
                 tx_queue.send(action).map_err(|err| {
                     error!(
                         "Hasher worker cannot communicate with pool. Channel error. Worker will be closed"
@@ -90,11 +90,17 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
                 };
                 let mut collected = Vec::new();
                 let mut reports: Vec<(PathBuf, E)> = Vec::new();
-                for (path, hasher, reader) in jobs.into_iter() {
+                for path in jobs.into_iter() {
                     if breaker.is_aborted() {
                         break 'outer;
                     }
-                    match hash_file(&path, hasher, reader, &reading_strategy, &breaker) {
+                    match hash_file(
+                        &path,
+                        hasher.clone(),
+                        reader.clone(),
+                        &reading_strategy,
+                        &breaker,
+                    ) {
                         Ok(hasher) => collected.push((path, hasher)),
                         Err(err) => {
                             if matches!(tolerance, Tolerance::StopOnErrors) {
@@ -135,8 +141,8 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
     ///
     /// # Parameters
     ///
-    /// - `jobs`: The vector of jobs (file paths, hasher, reader) to be processed by the worker.
-    pub fn delegate(&self, jobs: Vec<Job<H, R>>) {
+    /// - `jobs`: The vector of jobs (paths to files) to be processed by the worker.
+    pub fn delegate(&self, jobs: Vec<PathBuf>) {
         let _ = self.tx_task.send(Task::Hash(jobs));
     }
 
@@ -174,11 +180,11 @@ impl<H: Hasher + 'static, R: Reader + 'static> Worker<H, R> {
 /// This function will return an error if the operation is interrupted or if there is an issue with reading the file.
 fn hash_file<H: Hasher, R: Reader>(
     path: &Path,
-    mut hasher: H,
-    mut reader: R,
+    hasher: Arc<RwLock<H>>,
+    reader: Arc<RwLock<R>>,
     reading_strategy: &ReadingStrategy,
     breaker: &Breaker,
-) -> Result<H, E>
+) -> Result<Vec<u8>, E>
 where
     E: From<<R as Reader>::Error> + From<<H as Hasher>::Error>,
 {
@@ -188,6 +194,9 @@ where
     if !path.exists() {
         return Err(E::FileDoesNotExists(path.to_path_buf()));
     }
+    let mut hasher = hasher.read()?.clone();
+    let mut reader = reader.read()?.bind(path);
+    hasher.setup()?;
     let mut apply = |reading_strategy: &ReadingStrategy| {
         match reading_strategy {
             ReadingStrategy::Buffer => {
@@ -237,5 +246,5 @@ where
         }
     };
     hasher.finish()?;
-    Ok(hasher)
+    Ok(hasher.hash()?.to_vec())
 }

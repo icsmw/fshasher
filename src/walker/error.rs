@@ -1,6 +1,6 @@
 use crate::{collector, entry};
 use glob::PatternError;
-use std::{io, path::PathBuf};
+use std::{io, path::PathBuf, sync::PoisonError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -39,8 +39,8 @@ pub enum E {
     Hasher(String),
     #[error("Reading IO error: {0}")]
     ReadingIOError(io::Error),
-    #[error("Fail to get access to data between threads: {0}")]
-    PoisonError(String),
+    #[error("Fail to get access to data between threads")]
+    PoisonError,
     #[error("Channel error: {0}")]
     ChannelError(String),
     #[error("Collector error: {0}")]
@@ -99,6 +99,12 @@ impl From<entry::E> for E {
 impl From<io::Error> for E {
     fn from(err: io::Error) -> Self {
         E::ReadingIOError(err)
+    }
+}
+
+impl<T> From<PoisonError<T>> for E {
+    fn from(_: PoisonError<T>) -> Self {
+        E::PoisonError
     }
 }
 

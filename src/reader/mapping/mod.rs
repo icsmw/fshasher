@@ -19,6 +19,9 @@ pub struct Mapping {
 
 impl Reader for Mapping {
     type Error = E;
+    fn unbound() -> Self {
+        Self::default()
+    }
     fn bind<P: AsRef<Path>>(&self, path: P) -> Self
     where
         Self: Sized,
@@ -30,9 +33,7 @@ impl Reader for Mapping {
             mmap: None,
         }
     }
-    fn clone(&self) -> Self {
-        Self::default()
-    }
+
     fn mmap(&mut self) -> Result<&[u8], E> {
         if self.file.is_none() {
             let file = File::open(&self.path)?;

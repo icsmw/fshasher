@@ -1,19 +1,19 @@
 use super::{Action, ReadingStrategy, Worker};
 use crate::{breaker::Breaker, walker, Hasher, Reader, Tolerance};
-use std::{slice::Iter, sync::mpsc::Sender};
+use std::{
+    slice::Iter,
+    sync::{mpsc::Sender, Arc, RwLock},
+};
 
 /// Created by the `Walker` function to manage available workers. Each worker takes a vector of file paths and manages the calculation of their hashes.
 /// To calculate a hash, the worker reads the file with the given reader and provides the file's content to the hasher, which returns the hash of the file.
 /// As soon as the worker completes all given paths, it returns a vector of file paths with hashes to the `Walker`.
-pub struct Pool<H: Hasher, R: Reader> {
-    workers: Vec<Worker<H, R>>,
+pub struct Pool {
+    workers: Vec<Worker>,
     shutdowning: bool,
 }
 
-impl<H: Hasher + 'static, R: Reader + 'static> Pool<H, R>
-where
-    walker::E: From<<R as Reader>::Error> + From<<H as Hasher>::Error>,
-{
+impl Pool {
     /// Creates a new `Pool` with the specified number of workers.
     ///
     /// # Parameters
@@ -31,24 +31,32 @@ where
     ///   - `ReadingStrategy::Scenario(..)` - The scenario strategy can be used to combine different strategies according to the
     ///     file's size.
     /// - `breaker`: The breaker to handle interruptions.
-    ///
+    /// - `hasher`: reference to a instance of hasher to clone and in worker
+    /// - `reader`: reference to a instance of reader to clone and in worker
     /// # Returns
     ///
     /// - A new `Pool` instance.
-    pub fn new(
+    pub fn new<H: Hasher + 'static, R: Reader + 'static>(
         count: usize,
-        tx_queue: Sender<Action<H>>,
+        tx_queue: Sender<Action>,
         reading_strategy: &ReadingStrategy,
         tolerance: &Tolerance,
         breaker: &Breaker,
-    ) -> Self {
-        let mut workers: Vec<Worker<H, R>> = Vec::new();
+        hasher: &Arc<RwLock<H>>,
+        reader: &Arc<RwLock<R>>,
+    ) -> Self
+    where
+        walker::E: From<<R as Reader>::Error> + From<<H as Hasher>::Error>,
+    {
+        let mut workers: Vec<Worker> = Vec::new();
         for _ in 0..count {
             workers.push(Worker::run(
                 tx_queue.clone(),
                 reading_strategy.clone(),
                 tolerance.clone(),
                 breaker.clone(),
+                hasher.clone(),
+                reader.clone(),
             ));
         }
         Self {
@@ -61,9 +69,13 @@ where
     ///
     /// # Returns
     ///
-    /// - `Iter<Worker<H, R>>`: An iterator over the workers.
-    pub fn iter(&self) -> Iter<Worker<H, R>> {
+    /// - `Iter<Worker>`: An iterator over the workers.
+    pub fn iter(&self) -> Iter<Worker> {
         self.workers.iter()
+    }
+
+    pub fn workers(&self) -> Vec<&Worker> {
+        self.iter().collect()
     }
 
     /// Checks if all workers are shut down.

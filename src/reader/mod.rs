@@ -18,6 +18,7 @@ pub trait Reader: Read + Send + Sync {
     /// The type of error that can occur during operations.
     type Error: error::Error + Into<walker::E>;
 
+    fn unbound() -> Self;
     /// Binds the reader to the specified file path.
     ///
     /// # Parameters
@@ -31,13 +32,6 @@ pub trait Reader: Read + Send + Sync {
     fn bind<P: AsRef<Path>>(&self, path: P) -> Self
     where
         Self: Sized;
-
-    /// Creates a clone of the reader.
-    ///
-    /// # Returns
-    ///
-    /// - `Self`: A cloned instance of the reader.
-    fn clone(&self) -> Self;
 
     /// Memory-maps the file for reading. This method must be implemented only if the reader supports
     /// mapping the file into memory. This method will be called only if `Walker` is used with the

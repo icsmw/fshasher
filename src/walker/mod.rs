@@ -17,26 +17,35 @@ pub use progress::{JobType, Progress, ProgressChannel, Tick};
 use std::{
     io, mem,
     path::PathBuf,
-    sync::mpsc::{channel, Receiver, Sender},
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc, RwLock,
+    },
     thread::{self, JoinHandle},
     time::Instant,
 };
-pub use worker::{Job, Worker};
+pub use worker::Worker;
 
 /// The default minimum number of paths that will be given to a hash worker to calculate hashes.
 const MIN_PATHS_PER_JOB: usize = 2;
 /// The default maximum number of paths that will be given to a hash worker to calculate hashes.
 const MAX_PATHS_PER_JOB: usize = 500;
 
+enum JobCollecting {
+    Err(E),
+    NoJobs,
+    Success,
+}
+
 /// Message for communication between `Walker` and workers during hashing.
-pub enum Action<H: Hasher> {
+pub enum Action {
     /// Used by workers to report the results of hashing files to `Walker`.
     ///
     /// # Parameters
     ///
     /// - `Vec<(PathBuf, H)>`: A vector of tuples where each tuple contains
     ///   a file path and its corresponding hash.
-    Processed(Vec<(PathBuf, H)>, Vec<(PathBuf, E)>),
+    Processed(Vec<(PathBuf, Vec<u8>)>, Vec<(PathBuf, E)>),
 
     /// Used by workers to notify `Walker` about the closing of a worker's thread.
     WorkerShutdownNotification,
@@ -49,6 +58,9 @@ pub enum Action<H: Hasher> {
     /// - `E`: The error encountered during processing.
     Error(PathBuf, E),
 }
+
+type HashItem = (PathBuf, Option<Result<Vec<u8>, E>>);
+
 /// `Walker` collects file paths according to a given pattern, then calculates the hash for each
 /// file and provides a combined hash for all files.
 ///
@@ -105,14 +117,15 @@ pub struct Walker<H: Hasher, R: Reader> {
     /// `Breaker` structure for interrupting the path collection and hashing operations.
     breaker: Breaker,
     /// Paths collected during the recursive traversal of the paths specified in `Options` and
-    /// according to the patterns. This field is populated when `collect()` is called but is reset
-    /// when `hash()` is called.
-    pub paths: Vec<PathBuf>,
-    /// Paths to files or folders whose reading attempt caused an error. This field is not populated
-    /// if the tolerance level is set to `Tolerance::StopOnErrors`.
-    invalid: Vec<PathBuf>,
-    /// Collection of hashes for each file. Populated when `hash()` is called.
-    hashes: Vec<(PathBuf, H)>,
+    /// according to the patterns. This field is populated when `collect()` is called.
+    ///
+    /// # Fields
+    ///
+    /// * `PathBuf` - full filepath
+    /// * `Option<Result<Vec<u8>, E>>` - can have next values:
+    ///   * `None` - right after `collect()` has been called
+    ///   * `Result<Vec<u8>, E>` - result of hashing; if hashing was failed, keep related error
+    pub paths: Vec<HashItem>,
     /// The resulting hash. Set when `hash()` is called.
     hash: Option<H>,
     /// An instance of the hasher for hashing each file.
@@ -144,8 +157,6 @@ where
             opt: Some(opt),
             breaker: Breaker::new(),
             paths: Vec::new(),
-            invalid: Vec::new(),
-            hashes: Vec::new(),
             hash: None,
             hasher,
             reader,
@@ -172,15 +183,15 @@ where
         let opt = self.opt.as_mut().ok_or(E::IsNotInited)?;
         let progress = self.progress.as_ref().map(|(progress, _)| progress.clone());
         for entry in opt.entries.iter() {
-            let (mut collected, mut invalid) = collect(
+            let (collected, mut invalid) = collect(
                 &progress,
                 entry,
                 &self.breaker,
                 &opt.tolerance,
                 &opt.threads,
             )?;
-            self.paths.append(&mut collected);
-            self.invalid.append(&mut invalid);
+            self.paths
+                .append(&mut collected.into_iter().map(|p| (p, None)).collect());
         }
         debug!(
             "collected {} paths in {}µs / {}ms / {}s",
@@ -236,23 +247,13 @@ where
         self.breaker.clone()
     }
 
-    /// Returns paths to files or folders whose reading attempt caused an error. This will always return
-    /// an empty list if the tolerance level is set to `Tolerance::StopOnErrors`.
-    ///
-    /// # Returns
-    ///
-    /// - A slice of `PathBuf` containing the paths to files or folders that caused errors.
-    pub fn invalid(&self) -> &[PathBuf] {
-        &self.invalid
-    }
-
-    /// Returns the number of calculated hashes. This is equal to the number of accepted paths.
+    /// This is equal to the number paths, found by `collect()`.
     ///
     /// # Returns
     ///
     /// - The number of calculated hashes.
     pub fn count(&self) -> usize {
-        self.hashes.len()
+        self.paths.len()
     }
 
     /// Returns a channel for tracking the progress of collecting and hashing. A repeated call to `hash()`
@@ -289,7 +290,7 @@ where
         }
         let opt = self.opt.as_mut().ok_or(E::IsNotInited)?;
         let tolerance = opt.tolerance.clone();
-        let (tx_queue, rx_queue): (Sender<Action<H>>, Receiver<Action<H>>) = channel();
+        let (tx_queue, rx_queue): (Sender<Action>, Receiver<Action>) = channel();
         let progress = self.progress.as_ref().map(|(progress, _)| progress.clone());
         let breaker = self.breaker.clone();
         let cores = thread::available_parallelism()
@@ -302,29 +303,32 @@ where
             }
         }
         let threads = opt.threads.unwrap_or(cores);
-        let mut workers: Pool<H, R> = Pool::new(
+        let hasher = Arc::new(RwLock::new(self.hasher.clone()));
+        let reader = Arc::new(RwLock::new(R::unbound()));
+        let mut pool: Pool = Pool::new::<H, R>(
             threads,
             tx_queue.clone(),
             &opt.reading_strategy,
             &opt.tolerance,
             &self.breaker,
+            &hasher,
+            &reader,
         );
+        let hasher = self.hasher.clone();
         debug!("Created pool with {threads} workers for hashing");
         let mut paths = mem::take(&mut self.paths);
-        let hasher = self.hasher.clone();
-        let reader = self.reader.clone();
         let total = paths.len();
         let paths_per_jobs =
             ((total as f64 * 0.05).ceil() as usize).clamp(MIN_PATHS_PER_JOB, MAX_PATHS_PER_JOB);
 
-        type HashingResult<T> = Result<(T, Vec<(PathBuf, T)>, Vec<PathBuf>), E>;
+        type HashingResult<T> = Result<(T, Vec<HashItem>), E>;
 
         let handle: JoinHandle<HashingResult<H>> = thread::spawn(move || {
             fn check_err(
                 path: PathBuf,
                 err: E,
                 tolerance: &Tolerance,
-                invalid: &mut Vec<PathBuf>,
+                hashes: &mut Vec<HashItem>,
             ) -> Result<(), E> {
                 match tolerance {
                     Tolerance::StopOnErrors => {
@@ -333,72 +337,83 @@ where
                     }
                     Tolerance::LogErrors => {
                         warn!("entry: {}; error: {err}", path.display());
-                        invalid.push(path);
+                        hashes.push((path, Some(Err(err))));
                         Ok(())
                     }
                     Tolerance::DoNotLogErrors => {
-                        invalid.push(path);
+                        hashes.push((path, Some(Err(err))));
                         Ok(())
                     }
                 }
             }
-            fn get_next_job<H: Hasher, R: Reader>(
-                paths: &mut Vec<PathBuf>,
+            fn get_next_job(
+                paths: &mut Vec<HashItem>,
                 paths_per_jobs: usize,
-                reader: &R,
-                hasher: &H,
                 tolerance: &Tolerance,
-                invalid: &mut Vec<PathBuf>,
-            ) -> Result<Vec<Job<H, R>>, E> {
+                hashes: &mut Vec<HashItem>,
+            ) -> Result<Vec<PathBuf>, E> {
                 let mut jobs = Vec::new();
                 while jobs.len() < paths_per_jobs && !paths.is_empty() {
-                    let path = paths.remove(0);
+                    let (path, _) = paths.remove(0);
                     if !path.exists() {
                         check_err(
                             path,
                             io::Error::new(io::ErrorKind::NotFound, "File not found").into(),
                             tolerance,
-                            invalid,
+                            hashes,
                         )?;
                         continue;
                     }
-                    let h = match hasher.setup() {
-                        Ok(h) => h,
-                        Err(err) => {
-                            check_err(path, err.into(), tolerance, invalid)?;
-                            continue;
-                        }
-                    };
-                    let r = reader.bind(&path);
-                    jobs.push((path, h, r));
+                    jobs.push(path);
                 }
                 Ok(jobs)
             }
-            let mut summary = hasher.setup()?;
-            let mut invalid: Vec<PathBuf> = Vec::new();
-            let mut no_jobs = true;
-            for worker in workers.iter() {
-                let jobs: Vec<(PathBuf, H, R)> = get_next_job(
-                    &mut paths,
-                    paths_per_jobs,
-                    &reader,
-                    &hasher,
-                    &tolerance,
-                    &mut invalid,
-                )?;
-                if jobs.is_empty() {
-                    break;
+            fn deligate(
+                workers: Vec<&Worker>,
+                paths: &mut Vec<HashItem>,
+                paths_per_jobs: usize,
+                tolerance: &Tolerance,
+                hashes: &mut Vec<HashItem>,
+            ) -> JobCollecting {
+                for (i, worker) in workers.iter().enumerate() {
+                    match get_next_job(paths, paths_per_jobs, tolerance, hashes) {
+                        Ok(jobs) => {
+                            if jobs.is_empty() && i == 0 {
+                                // No any worker get a job
+                                return JobCollecting::NoJobs;
+                            } else if jobs.is_empty() && i != 0 {
+                                // At least one worker get a job
+                                break;
+                            } else {
+                                worker.delegate(jobs);
+                            }
+                        }
+                        Err(err) => {
+                            return JobCollecting::Err(err);
+                        }
+                    }
                 }
-                no_jobs = false;
-                worker.delegate(jobs);
+                JobCollecting::Success
             }
-            let mut hashes = Vec::new();
-            if no_jobs {
-                workers.shutdown().wait();
+            let mut summary = hasher.setup()?;
+            let mut hashes: Vec<HashItem> = Vec::new();
+            let initialization = deligate(
+                pool.workers(),
+                &mut paths,
+                paths_per_jobs,
+                &tolerance,
+                &mut hashes,
+            );
+            if !matches!(initialization, JobCollecting::Success) {
+                pool.shutdown().wait();
                 summary.finish()?;
-                return Ok((summary, hashes, invalid));
+                return if let JobCollecting::Err(err) = initialization {
+                    Err(err)
+                } else {
+                    Ok((summary, hashes))
+                };
             }
-            let mut pending: Option<Action<H>> = None;
+            let mut pending: Option<Action> = None;
             let outer: Result<(), E> = 'outer: loop {
                 let next = if let Some(next) = pending.take() {
                     next
@@ -411,18 +426,23 @@ where
                     break 'outer Err(E::Aborted);
                 }
                 match next {
-                    Action::Processed(mut processed, reports) => {
+                    Action::Processed(processed, reports) => {
                         for (path, err) in reports.into_iter() {
                             // If error reported by Worker, it's already not Tolerance::StopOnErrors
-                            let _ = check_err(path, err, &tolerance, &mut invalid);
+                            let _ = check_err(path, err, &tolerance, &mut hashes);
                         }
-                        hashes.append(&mut processed);
+                        hashes.append(
+                            &mut processed
+                                .into_iter()
+                                .map(|(p, h)| (p, Some(Ok(h))))
+                                .collect(),
+                        );
                         if let Some(ref progress) = progress {
                             progress.notify(JobType::Hashing, hashes.len(), total)
                         }
                     }
                     Action::WorkerShutdownNotification => {
-                        if workers.is_all_down() {
+                        if pool.is_all_down() {
                             if let Ok(next) = rx_queue.try_recv() {
                                 pending = Some(next);
                                 continue;
@@ -432,49 +452,50 @@ where
                         }
                     }
                     Action::Error(path, err) => {
-                        if let Err(err) = check_err(path, err, &tolerance, &mut invalid) {
+                        if let Err(err) = check_err(path, err, &tolerance, &mut hashes) {
                             break 'outer Err(err);
                         }
                     }
                 }
-                if workers.is_shutdowning() {
+                if pool.is_shutdowning() {
                     continue;
                 }
-                'delegate: for worker in workers.iter() {
-                    let jobs: Vec<(PathBuf, H, R)> = get_next_job(
-                        &mut paths,
-                        paths_per_jobs,
-                        &reader,
-                        &hasher,
-                        &tolerance,
-                        &mut invalid,
-                    )?;
-                    if jobs.is_empty() {
-                        workers.shutdown();
-                        break 'delegate;
+                match deligate(
+                    pool.workers(),
+                    &mut paths,
+                    paths_per_jobs,
+                    &tolerance,
+                    &mut hashes,
+                ) {
+                    JobCollecting::Err(err) => {
+                        break 'outer Err(err);
                     }
-                    worker.delegate(jobs);
-                }
+                    JobCollecting::Success => {}
+                    JobCollecting::NoJobs => {
+                        pool.shutdown();
+                    }
+                };
             };
-            workers.shutdown().wait();
+            pool.shutdown().wait();
             if let Err(err) = outer {
                 Err(err)
             } else {
                 hashes.sort_by(|(a, _), (b, _)| a.cmp(b));
                 for (_, hash) in hashes.iter() {
-                    summary.absorb(hash.hash()?)?;
+                    if let Some(Ok(hash)) = hash {
+                        summary.absorb(hash)?;
+                    }
                 }
                 summary.finish()?;
-                Ok((summary, hashes, invalid))
+                Ok((summary, hashes))
             }
         });
         self.progress = opt.progress.map(Progress::channel);
-        let (summary, mut hashes, mut invalid) = handle
+        let (summary, mut hashes) = handle
             .join()
             .map_err(|e| E::JoinError(format!("{e:?}")))??;
-        self.hashes = mem::take(&mut hashes);
+        self.paths = mem::take(&mut hashes);
         self.hash = Some(summary);
-        self.invalid.append(&mut invalid);
         self.progress = opt.progress.map(Progress::channel);
         let hash = if let Some(ref hash) = self.hash {
             hash.hash()?
@@ -488,7 +509,7 @@ where
             now.elapsed().as_millis(),
             now.elapsed().as_secs()
         );
-        Ok(if self.hashes.is_empty() { &[] } else { hash })
+        Ok(hash)
     }
 
     /// Returns an iterator to iterate over the calculated hashes.
@@ -506,9 +527,7 @@ where
     /// This method is used each time before `collect()` is called. It resets the previous state to default.
     fn reset(&mut self) {
         self.paths = Vec::new();
-        self.invalid = Vec::new();
         self.hash = None;
-        self.hashes = Vec::new();
         self.breaker.reset();
     }
 }
@@ -525,7 +544,7 @@ pub struct WalkerIter<'a, H: Hasher, R: Reader> {
 }
 
 impl<'a, H: Hasher, R: Reader> Iterator for WalkerIter<'a, H, R> {
-    type Item = &'a (PathBuf, H);
+    type Item = &'a (PathBuf, Option<Result<Vec<u8>, E>>);
 
     /// Advances the iterator and returns the next `(PathBuf, H)` pair.
     ///
@@ -534,17 +553,17 @@ impl<'a, H: Hasher, R: Reader> Iterator for WalkerIter<'a, H, R> {
     /// - `Some(&(PathBuf, H))` if there is another hash to return.
     /// - `None` if there are no more hashes to return.
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos >= self.walker.hashes.len() {
+        if self.pos >= self.walker.paths.len() {
             None
         } else {
             self.pos += 1;
-            Some(&self.walker.hashes[self.pos - 1])
+            Some(&self.walker.paths[self.pos - 1])
         }
     }
 }
 
 impl<'a, H: Hasher, R: Reader> IntoIterator for &'a Walker<H, R> {
-    type Item = &'a (PathBuf, H);
+    type Item = &'a (PathBuf, Option<Result<Vec<u8>, E>>);
     type IntoIter = WalkerIter<'a, H, R>;
 
     /// Creates an iterator over the calculated hashes in the `Walker`.

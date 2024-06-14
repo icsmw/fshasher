@@ -27,7 +27,14 @@ fn test_dest_for_correction(usecase: &UseCase) -> Result<(), E> {
         walker.collect()?;
         assert_eq!(walker.paths.len(), usecase.files.len());
         hashes.push(walker.hash()?.to_vec());
-        assert_eq!(walker.count(), usecase.files.len());
+        assert_eq!(
+            walker
+                .paths
+                .iter()
+                .filter(|(_, h)| if let Some(h) = h { h.is_ok() } else { false })
+                .count(),
+            usecase.files.len()
+        );
     }
     assert_eq!(hashes.len(), 2);
     assert_eq!(hashes[0], hashes[1]);
@@ -162,8 +169,14 @@ fn removed_dest() -> Result<(), E> {
     walker.collect()?;
     assert_eq!(walker.paths.len(), usecase.files.len());
     usecase.clean()?;
-    assert!(walker.hash()?.is_empty());
-    assert_eq!(walker.invalid().len(), usecase.files.len());
+    assert!(walker.hash().is_ok());
+    assert_eq!(
+        walker
+            .iter()
+            .filter(|(_, h)| if let Some(h) = h { h.is_err() } else { false })
+            .count(),
+        usecase.files.len()
+    );
     Ok(())
 }
 

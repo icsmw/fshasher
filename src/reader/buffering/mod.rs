@@ -16,6 +16,9 @@ pub struct Buffering {
 
 impl Reader for Buffering {
     type Error = E;
+    fn unbound() -> Self {
+        Self::default()
+    }
     fn bind<P: AsRef<Path>>(&self, path: P) -> Self
     where
         Self: Sized,
@@ -24,9 +27,6 @@ impl Reader for Buffering {
             file: None,
             path: path.as_ref().to_path_buf(),
         }
-    }
-    fn clone(&self) -> Self {
-        Self::default()
     }
     fn mmap(&mut self) -> Result<&[u8], E> {
         Err(E::MemoryMappingNotSupported)

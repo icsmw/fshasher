@@ -15,7 +15,13 @@ fn changed_dest_after_collecting_ignore_error() -> Result<(), E> {
     let removed_count = 100;
     usecase.remove(removed_count)?;
     assert!(walker.hash().is_ok());
-    assert_eq!(walker.invalid().len(), removed_count);
+    assert_eq!(
+        walker
+            .iter()
+            .filter(|(_, h)| if let Some(h) = h { h.is_err() } else { false })
+            .count(),
+        removed_count
+    );
     usecase.clean()?;
     Ok(())
 }
