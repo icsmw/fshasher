@@ -111,7 +111,7 @@ type HashItem = (PathBuf, Option<Result<Vec<u8>, E>>);
 /// ```
 ///
 #[derive(Debug)]
-pub struct Walker<H: Hasher, R: Reader> {
+pub struct Walker {
     /// Settings for the `Walker`.
     opt: Option<Options>,
     /// `Breaker` structure for interrupting the path collection and hashing operations.
@@ -127,19 +127,12 @@ pub struct Walker<H: Hasher, R: Reader> {
     ///   * `Result<Vec<u8>, E>` - result of hashing; if hashing was failed, keep related error
     pub paths: Vec<HashItem>,
     /// The resulting hash. Set when `hash()` is called.
-    hash: Option<H>,
-    /// An instance of the hasher for hashing each file.
-    hasher: H,
-    /// An instance of the reader for reading each file.
-    reader: R,
+    hash: Option<Vec<u8>>,
     /// An instance of the channel for tracking the progress of path collection and hashing.
     progress: Option<ProgressChannel>,
 }
 
-impl<H: Hasher + 'static, R: Reader + 'static> Walker<H, R>
-where
-    E: From<<H as Hasher>::Error> + From<<R as Reader>::Error>,
-{
+impl Walker {
     /// Creates a new instance of `Walker`.
     ///
     /// # Parameters
@@ -151,15 +144,13 @@ where
     /// # Returns
     ///
     /// - A new instance of `Walker`.
-    pub fn new(opt: Options, hasher: H, reader: R) -> Self {
+    pub fn new(opt: Options) -> Self {
         let progress = opt.progress.map(Progress::channel);
         Self {
             opt: Some(opt),
             breaker: Breaker::new(),
             paths: Vec::new(),
             hash: None,
-            hasher,
-            reader,
             progress,
         }
     }
@@ -283,7 +274,11 @@ where
     /// `Tolerance::StopOnErrors`, the `hash()` method will return an error for any IO error encountered.
     ///
     /// All ignored paths will be saved into the `invalid` field.
-    pub fn hash(&mut self) -> Result<&[u8], E> {
+
+    pub fn hash<H: Hasher + 'static, R: Reader + 'static>(&mut self) -> Result<&[u8], E>
+    where
+        E: From<<H as Hasher>::Error> + From<<R as Reader>::Error>,
+    {
         let now = Instant::now();
         if self.paths.is_empty() {
             return Ok(&[]);
@@ -490,10 +485,10 @@ where
             .join()
             .map_err(|e| E::JoinError(format!("{e:?}")))??;
         self.paths = mem::take(&mut hashes);
-        self.hash = Some(summary);
+        self.hash = Some(summary.hash()?.to_vec());
         self.progress = opt.progress.map(Progress::channel);
         let hash = if let Some(ref hash) = self.hash {
-            hash.hash()?
+            hash
         } else {
             unreachable!("Hash has been stored");
         };
@@ -512,7 +507,7 @@ where
     /// # Returns
     ///
     /// - `WalkerIter<'_, H, R>`: An iterator to iterate over the calculated hashes.
-    pub fn iter(&self) -> WalkerIter<'_, H, R> {
+    pub fn iter(&self) -> WalkerIter<'_> {
         WalkerIter {
             walker: self,
             pos: 0,
@@ -531,14 +526,14 @@ where
 ///
 /// `WalkerIter` is used to iterate over the `(PathBuf, H)` pairs that
 /// represent the paths and their corresponding hashes calculated by the `Walker`.
-pub struct WalkerIter<'a, H: Hasher, R: Reader> {
+pub struct WalkerIter<'a> {
     /// A reference to the `Walker` instance.
-    walker: &'a Walker<H, R>,
+    walker: &'a Walker,
     /// The current position in the `hashes` vector.
     pos: usize,
 }
 
-impl<'a, H: Hasher, R: Reader> Iterator for WalkerIter<'a, H, R> {
+impl<'a> Iterator for WalkerIter<'a> {
     type Item = &'a (PathBuf, Option<Result<Vec<u8>, E>>);
 
     /// Advances the iterator and returns the next `(PathBuf, H)` pair.
@@ -557,9 +552,9 @@ impl<'a, H: Hasher, R: Reader> Iterator for WalkerIter<'a, H, R> {
     }
 }
 
-impl<'a, H: Hasher, R: Reader> IntoIterator for &'a Walker<H, R> {
+impl<'a> IntoIterator for &'a Walker {
     type Item = &'a (PathBuf, Option<Result<Vec<u8>, E>>);
-    type IntoIter = WalkerIter<'a, H, R>;
+    type IntoIter = WalkerIter<'a>;
 
     /// Creates an iterator over the calculated hashes in the `Walker`.
     ///

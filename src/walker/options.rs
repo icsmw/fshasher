@@ -232,14 +232,7 @@ impl Options {
     /// # Returns
     ///
     /// - `Result<Walker<H, R>, E>`: A new `Walker` instance or an error if the creation fails.
-    pub fn walker<H: Hasher + 'static, R: Reader + 'static>(
-        self,
-        hasher: H,
-        reader: R,
-    ) -> Result<Walker<H, R>, E>
-    where
-        E: From<<H as Hasher>::Error> + From<<R as Reader>::Error>,
-    {
-        Ok(Walker::new(self, hasher, reader))
+    pub fn walker(self) -> Result<Walker, E> {
+        Ok(Walker::new(self))
     }
 }

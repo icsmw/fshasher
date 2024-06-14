@@ -8,18 +8,18 @@ fn buffer() -> Result<(), E> {
     let mut walker_a = Options::from(&usecase.root)?
         .reading_strategy(ReadingStrategy::Buffer)?
         .tolerance(Tolerance::LogErrors)
-        .walker(
-            hasher::blake::Blake::default(),
-            reader::buffering::Buffering::default(),
-        )?;
-    let hash_a = walker_a.collect()?.hash()?.to_vec();
+        .walker()?;
+    let hash_a = walker_a
+        .collect()?
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?
+        .to_vec();
     let mut walker_b = Options::from(&usecase.root)?
         .tolerance(Tolerance::LogErrors)
-        .walker(
-            hasher::blake::Blake::default(),
-            reader::buffering::Buffering::default(),
-        )?;
-    let hash_b = walker_b.collect()?.hash()?.to_vec();
+        .walker()?;
+    let hash_b = walker_b
+        .collect()?
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?
+        .to_vec();
     assert_eq!(walker_a.count(), usecase.files.len());
     assert_eq!(walker_b.count(), usecase.files.len());
     assert_eq!(hash_a, hash_b);
@@ -33,18 +33,18 @@ fn complete() -> Result<(), E> {
     let mut walker_a = Options::from(&usecase.root)?
         .reading_strategy(ReadingStrategy::Complete)?
         .tolerance(Tolerance::LogErrors)
-        .walker(
-            hasher::blake::Blake::default(),
-            reader::buffering::Buffering::default(),
-        )?;
-    let hash_a = walker_a.collect()?.hash()?.to_vec();
+        .walker()?;
+    let hash_a = walker_a
+        .collect()?
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?
+        .to_vec();
     let mut walker_b = Options::from(&usecase.root)?
         .tolerance(Tolerance::LogErrors)
-        .walker(
-            hasher::blake::Blake::default(),
-            reader::buffering::Buffering::default(),
-        )?;
-    let hash_b = walker_b.collect()?.hash()?.to_vec();
+        .walker()?;
+    let hash_b = walker_b
+        .collect()?
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?
+        .to_vec();
     assert_eq!(walker_a.count(), usecase.files.len());
     assert_eq!(walker_b.count(), usecase.files.len());
     assert_eq!(hash_a, hash_b);
@@ -58,18 +58,18 @@ fn memory_mapped() -> Result<(), E> {
     let mut walker_a = Options::from(&usecase.root)?
         .reading_strategy(ReadingStrategy::MemoryMapped)?
         .tolerance(Tolerance::LogErrors)
-        .walker(
-            hasher::blake::Blake::default(),
-            reader::mapping::Mapping::default(),
-        )?;
-    let hash_a = walker_a.collect()?.hash()?.to_vec();
+        .walker()?;
+    let hash_a = walker_a
+        .collect()?
+        .hash::<hasher::blake::Blake, reader::mapping::Mapping>()?
+        .to_vec();
     let mut walker_b = Options::from(&usecase.root)?
         .tolerance(Tolerance::LogErrors)
-        .walker(
-            hasher::blake::Blake::default(),
-            reader::buffering::Buffering::default(),
-        )?;
-    let hash_b = walker_b.collect()?.hash()?.to_vec();
+        .walker()?;
+    let hash_b = walker_b
+        .collect()?
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?
+        .to_vec();
     assert_eq!(walker_a.count(), usecase.files.len());
     assert_eq!(walker_b.count(), usecase.files.len());
     assert_eq!(hash_a, hash_b);
@@ -86,18 +86,18 @@ fn scenario() -> Result<(), E> {
             (1024 * 1024..u64::MAX, Box::new(ReadingStrategy::Buffer)),
         ]))?
         .tolerance(Tolerance::LogErrors)
-        .walker(
-            hasher::blake::Blake::default(),
-            reader::mapping::Mapping::default(),
-        )?;
-    let hash_a = walker_a.collect()?.hash()?.to_vec();
+        .walker()?;
+    let hash_a = walker_a
+        .collect()?
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?
+        .to_vec();
     let mut walker_b = Options::from(&usecase.root)?
         .tolerance(Tolerance::LogErrors)
-        .walker(
-            hasher::blake::Blake::default(),
-            reader::buffering::Buffering::default(),
-        )?;
-    let hash_b = walker_b.collect()?.hash()?.to_vec();
+        .walker()?;
+    let hash_b = walker_b
+        .collect()?
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?
+        .to_vec();
     assert_eq!(walker_a.count(), usecase.files.len());
     assert_eq!(walker_b.count(), usecase.files.len());
     assert_eq!(hash_a, hash_b);

@@ -20,13 +20,14 @@ fn test_dest_for_correction(usecase: &UseCase) -> Result<(), E> {
         let mut walker = Options::new()
             .entry(Entry::from(&usecase.root)?)?
             .tolerance(Tolerance::LogErrors)
-            .walker(
-                hasher::blake::Blake::default(),
-                reader::buffering::Buffering::default(),
-            )?;
+            .walker()?;
         walker.collect()?;
         assert_eq!(walker.paths.len(), usecase.files.len());
-        hashes.push(walker.hash()?.to_vec());
+        hashes.push(
+            walker
+                .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?
+                .to_vec(),
+        );
         assert_eq!(
             walker
                 .paths
@@ -62,24 +63,22 @@ fn test_dest_for_changes(usecase: &UseCase) -> Result<(), E> {
     let mut walker_a = Options::new()
         .entry(Entry::from(&usecase.root)?)?
         .tolerance(Tolerance::LogErrors)
-        .walker(
-            hasher::blake::Blake::default(),
-            reader::buffering::Buffering::default(),
-        )?;
+        .walker()?;
     walker_a.collect()?;
     assert_eq!(walker_a.paths.len(), usecase.files.len());
-    let hash_a = walker_a.hash()?.to_vec();
+    let hash_a = walker_a
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?
+        .to_vec();
     usecase.change(10)?;
     let mut walker_b = Options::new()
         .entry(Entry::from(&usecase.root)?)?
         .tolerance(Tolerance::LogErrors)
-        .walker(
-            hasher::blake::Blake::default(),
-            reader::buffering::Buffering::default(),
-        )?;
+        .walker()?;
     walker_b.collect()?;
     assert_eq!(walker_b.paths.len(), usecase.files.len());
-    let hash_b = walker_b.hash()?.to_vec();
+    let hash_b = walker_b
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?
+        .to_vec();
     assert_eq!(walker_a.count(), usecase.files.len());
     assert_eq!(walker_b.count(), usecase.files.len());
     assert_ne!(hash_a, hash_b);
@@ -110,11 +109,11 @@ fn stress_permissions_issue() -> Result<(), E> {
         let mut walker = Options::new()
             .entry(Entry::from(temp_dir())?)?
             .tolerance(Tolerance::LogErrors)
-            .walker(
-                hasher::blake::Blake::default(),
-                reader::buffering::Buffering::default(),
-            )?;
-        let hash = walker.collect()?.hash()?.to_vec();
+            .walker()?;
+        let hash = walker
+            .collect()?
+            .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?
+            .to_vec();
         if walker.iter().count() > 0 {
             assert!(!hash.is_empty());
         } else {
@@ -130,11 +129,11 @@ fn empty_dest_folder() -> Result<(), E> {
     let mut walker = Options::new()
         .entry(Entry::from(&usecase.root)?)?
         .tolerance(Tolerance::LogErrors)
-        .walker(
-            hasher::blake::Blake::default(),
-            reader::buffering::Buffering::default(),
-        )?;
-    let hash = walker.collect()?.hash()?.to_vec();
+        .walker()?;
+    let hash = walker
+        .collect()?
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?
+        .to_vec();
     assert!(hash.is_empty());
     usecase.clean()?;
     Ok(())
@@ -146,11 +145,11 @@ fn empty_folders() -> Result<(), E> {
     let mut walker = Options::new()
         .entry(Entry::from(&usecase.root)?)?
         .tolerance(Tolerance::LogErrors)
-        .walker(
-            hasher::blake::Blake::default(),
-            reader::buffering::Buffering::default(),
-        )?;
-    let hash = walker.collect()?.hash()?.to_vec();
+        .walker()?;
+    let hash = walker
+        .collect()?
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?
+        .to_vec();
     assert!(hash.is_empty());
     usecase.clean()?;
     Ok(())
@@ -162,14 +161,13 @@ fn removed_dest() -> Result<(), E> {
     let mut walker = Options::new()
         .entry(Entry::from(&usecase.root)?)?
         .tolerance(Tolerance::LogErrors)
-        .walker(
-            hasher::blake::Blake::default(),
-            reader::buffering::Buffering::default(),
-        )?;
+        .walker()?;
     walker.collect()?;
     assert_eq!(walker.paths.len(), usecase.files.len());
     usecase.clean()?;
-    assert!(walker.hash().is_ok());
+    assert!(walker
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()
+        .is_ok());
     assert_eq!(
         walker
             .iter()
@@ -186,25 +184,25 @@ fn removed_dest_no_tolerance() -> Result<(), E> {
     let mut walker = Options::new()
         .entry(Entry::from(&usecase.root)?)?
         .tolerance(Tolerance::StopOnErrors)
-        .walker(
-            hasher::blake::Blake::default(),
-            reader::buffering::Buffering::default(),
-        )?;
+        .walker()?;
     walker.collect()?;
     assert_eq!(walker.paths.len(), usecase.files.len());
     usecase.clean()?;
-    assert!(walker.hash().is_err());
+    assert!(walker
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()
+        .is_err());
     Ok(())
 }
 
 #[test]
 fn iterator() -> Result<(), E> {
     let usecase = UseCase::unnamed(2, 4, 2, &[])?;
-    let mut walker = Options::new().entry(Entry::from(&usecase.root)?)?.walker(
-        hasher::blake::Blake::default(),
-        reader::buffering::Buffering::default(),
-    )?;
-    let _ = walker.collect()?.hash()?;
+    let mut walker = Options::new()
+        .entry(Entry::from(&usecase.root)?)?
+        .walker()?;
+    let _ = walker
+        .collect()?
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?;
     assert_eq!(walker.count(), usecase.files.len());
     assert_eq!(walker.iter().count(), usecase.files.len());
     for (filename, _) in walker.iter() {

@@ -5,10 +5,7 @@ use crate::{error::E, hasher, reader, test::usecase::*, JobType, Options};
 #[test]
 fn progress() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &[])?;
-    let mut walker = Options::from(&usecase.root)?.progress(10).walker(
-        hasher::blake::Blake::default(),
-        reader::buffering::Buffering::default(),
-    )?;
+    let mut walker = Options::from(&usecase.root)?.progress(10).walker()?;
     let rx_progress = walker.progress().unwrap();
     let handle = thread::spawn(move || {
         let mut ticks: usize = 0;
@@ -25,7 +22,9 @@ fn progress() -> Result<(), E> {
         }
         (ticks, collecting, hashing)
     });
-    walker.collect()?.hash()?;
+    walker
+        .collect()?
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?;
     let (ticks, collecting, hashing) = handle.join().expect("progress thread is finished");
     assert!(ticks > 0);
     assert!(collecting);

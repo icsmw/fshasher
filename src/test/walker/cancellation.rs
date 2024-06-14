@@ -5,10 +5,7 @@ use crate::{error::E, hasher, reader, test::usecase::*, walker, Options};
 #[test]
 fn cancellation() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &[])?;
-    let mut walker = Options::from(&usecase.root)?.progress(10).walker(
-        hasher::blake::Blake::default(),
-        reader::buffering::Buffering::default(),
-    )?;
+    let mut walker = Options::from(&usecase.root)?.progress(10).walker()?;
     let rx_progress = walker.progress().unwrap();
     walker.collect()?;
     let breaker = walker.breaker();
@@ -17,7 +14,7 @@ fn cancellation() -> Result<(), E> {
             breaker.abort();
         }
     });
-    let res = walker.hash();
+    let res = walker.hash::<hasher::blake::Blake, reader::buffering::Buffering>();
     if let Err(err) = res {
         assert!(matches!(err, walker::E::Aborted));
     } else {

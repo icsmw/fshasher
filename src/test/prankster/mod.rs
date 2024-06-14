@@ -23,11 +23,13 @@ fn with_one_thread() -> Result<(), E> {
     let mut walker = Options::new()
         .entry(Entry::from(&usecase.root)?)?
         .threads(1)?
-        .walker(
-            hasher::blake::Blake::default(),
-            reader::buffering::Buffering::default(),
-        )?;
-    assert!(!walker.collect().unwrap().hash().unwrap().is_empty());
+        .walker()?;
+    assert!(!walker
+        .collect()
+        .unwrap()
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()
+        .unwrap()
+        .is_empty());
     usecase.clean()?;
     Ok(())
 }
@@ -42,11 +44,13 @@ fn with_custom_number_threads() -> Result<(), E> {
     let mut walker = Options::new()
         .entry(Entry::from(&usecase.root)?)?
         .threads(cores)?
-        .walker(
-            hasher::blake::Blake::default(),
-            reader::buffering::Buffering::default(),
-        )?;
-    assert!(!walker.collect().unwrap().hash().unwrap().is_empty());
+        .walker()?;
+    assert!(!walker
+        .collect()
+        .unwrap()
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()
+        .unwrap()
+        .is_empty());
     usecase.clean()?;
     Ok(())
 }
@@ -62,12 +66,12 @@ fn bad_options_no_threads() -> Result<(), E> {
         reading_strategy: ReadingStrategy::Buffer,
         global: Entry::new(),
     };
-    let mut walker = opt.walker(
-        hasher::blake::Blake::default(),
-        reader::buffering::Buffering::default(),
-    )?;
+    let mut walker = opt.walker()?;
     assert!(walker.collect().is_err());
-    assert!(walker.hash().unwrap().is_empty());
+    assert!(walker
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()
+        .unwrap()
+        .is_empty());
     usecase.clean()?;
     Ok(())
 }
@@ -83,12 +87,12 @@ fn bad_options_too_many_threads() -> Result<(), E> {
         reading_strategy: ReadingStrategy::Buffer,
         global: Entry::new(),
     };
-    let mut walker = opt.walker(
-        hasher::blake::Blake::default(),
-        reader::buffering::Buffering::default(),
-    )?;
+    let mut walker = opt.walker()?;
     assert!(walker.collect().is_err());
-    assert!(walker.hash().unwrap().is_empty());
+    assert!(walker
+        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()
+        .unwrap()
+        .is_empty());
     usecase.clean()?;
     Ok(())
 }
