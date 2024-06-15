@@ -193,7 +193,7 @@ In the following example:
 - Use the `ReadingStrategy::MemoryMapped` strategy for files smaller than 1024KB.
 - Use the `ReadingStrategy::Buffer` strategy for files larger than 1024KB.
 
-```ignore
+```
     use fshasher::{collector::Tolerance, hasher, reader, Options, ReadingStrategy};
     use std::env::temp_dir;
 
@@ -205,12 +205,13 @@ In the following example:
         ]))
         .unwrap()
         .tolerance(Tolerance::LogErrors)
-        .walker(
-            hasher::blake::Blake::default(),
-            reader::mapping::Mapping::default(),
-        )
+        .walker()
         .unwrap();
-    let hash = walker.collect().unwrap().hash().unwrap().to_vec();
+    let hash = walker.collect()
+        .unwrap()
+        .hash::<hasher::blake::Blake, reader::mapping::Mapping>()
+        .unwrap()
+        .to_vec();
     assert!(!hash.is_empty());
 ```
 
@@ -224,6 +225,7 @@ Out of the box, `fshasher` includes the following readers:
 
 - `reader::buffering::Buffering` - A "classic" reader that reads the file chunk by chunk until the end. It doesn't support mapping the file into memory (cannot be used with `ReadingStrategy::MemoryMapped`).
 - `reader::mapping::Mapping` - Supports mapping the file into memory (can be used with `ReadingStrategy::MemoryMapped`) and "classic" reading chunk by chunk until the end of the file.
+- `reader::md::Md` - Instead reading of file, this reader creates a byte slice with date of last modification of file and size. Obviously, this reader will give very fast results, but it should be used only if you are sure checking the metadata would be enough to make the right conclusion.
 
 `fshasher` includes only one hasher out of the box:
 

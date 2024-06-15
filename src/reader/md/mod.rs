@@ -24,11 +24,6 @@ pub struct Md {
 impl Reader for Md {
     type Error = E;
 
-    /// Creates an unbound `Md` reader with default values.
-    fn unbound() -> Self {
-        Self::default()
-    }
-
     /// Creates a `Md` reader bound to the specified path.
     ///
     /// # Parameters
@@ -38,7 +33,7 @@ impl Reader for Md {
     /// # Returns
     ///
     /// - A new instance of `Md` reader bound to the specified path.
-    fn bound<P: AsRef<Path>>(path: P) -> Self
+    fn new<P: AsRef<Path>>(path: P) -> Self
     where
         Self: Sized,
     {

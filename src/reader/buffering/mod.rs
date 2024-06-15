@@ -19,11 +19,6 @@ pub struct Buffering {
 impl Reader for Buffering {
     type Error = E;
 
-    /// Creates an unbound `Buffering` reader with default values.
-    fn unbound() -> Self {
-        Self::default()
-    }
-
     /// Creates a `Buffering` reader bound to the specified path.
     ///
     /// # Parameters
@@ -33,7 +28,7 @@ impl Reader for Buffering {
     /// # Returns
     ///
     /// - A new instance of `Buffering` reader bound to the specified path.
-    fn bound<P: AsRef<Path>>(path: P) -> Self
+    fn new<P: AsRef<Path>>(path: P) -> Self
     where
         Self: Sized,
     {

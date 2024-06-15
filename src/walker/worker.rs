@@ -190,7 +190,7 @@ where
         return Err(E::FileDoesNotExists(path.to_path_buf()));
     }
     let mut hasher = H::new();
-    let mut reader = R::bound(path);
+    let mut reader = R::new(path);
     let mut apply = |reading_strategy: &ReadingStrategy| {
         match reading_strategy {
             ReadingStrategy::Buffer => {

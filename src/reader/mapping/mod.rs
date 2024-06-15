@@ -29,11 +29,6 @@ pub struct Mapping {
 impl Reader for Mapping {
     type Error = E;
 
-    /// Creates an unbound `Mapping` reader with default values.
-    fn unbound() -> Self {
-        Self::default()
-    }
-
     /// Creates a `Mapping` reader bound to the specified path.
     ///
     /// # Parameters
@@ -43,7 +38,7 @@ impl Reader for Mapping {
     /// # Returns
     ///
     /// - A new instance of `Mapping` reader bound to the specified path.
-    fn bound<P: AsRef<Path>>(path: P) -> Self
+    fn new<P: AsRef<Path>>(path: P) -> Self
     where
         Self: Sized,
     {

@@ -15,5 +15,7 @@ Your pull request should be linked to the relevant issue.
 ## Creating a Pull Request
 
 1. Fork the `fshasher` repository to your GitHub account.
-2. Create a branch. Implement your changes, make sure `cargo test` doesn't produce errors, and `cargo +nightly clippy --all --all-features -- -D warnings` also passes without warnings.
-3. Submit a pull request when your changes are tested and ready for review.
+2. Create a branch and implement your changes.
+3. Add necessary tests and make sure `cargo test` doesn't produce errors.
+4. Check `cargo +nightly clippy --all --all-features -- -D warnings` for any warnings and errors.
+5. Submit a pull request when your changes are tested and ready for review.
