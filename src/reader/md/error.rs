@@ -1,13 +1,13 @@
 use std::io;
 use thiserror::Error;
 
-use crate::{error, walker};
+use crate::walker;
 
 #[derive(Error, Debug)]
 pub enum E {
     #[error("Fail to read: {0}")]
     IOError(io::Error),
-    #[error("Buffering reader doesn't support mapping file into memory")]
+    #[error("Md reader doesn't support mapping file into memory")]
     MemoryMappingNotSupported,
 }
 
