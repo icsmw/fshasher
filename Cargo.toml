@@ -2,6 +2,14 @@
 name = "fshasher"
 version = "0.1.0"
 edition = "2021"
+authors = ["d.astafyev@outlook.com"]
+description = "Scan the destination folder and make a hash of all files to get the current state of the directory"
+license = "Apache-2.0"
+keywords = ["hash", "hashing", "blake", "sha2", "md5", "sha"]
+categories = ["hash", "fs"]
+repository = "https://github.com/icsmw/fshasher.git"
+homepage = "https://github.com/icsmw/fshasher"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
