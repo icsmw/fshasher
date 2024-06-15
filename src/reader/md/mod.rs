@@ -72,12 +72,13 @@ impl Read for Md {
         } else {
             self.done = true;
             let md = self.path.metadata()?;
-            let modified = if let Ok(st) = md.modified() {
-                st.duration_since(UNIX_EPOCH).map(|d| d.as_nanos())
-            } else {
-                Ok(0)
-            }
-            .unwrap_or(0);
+            let modified = md
+                .modified()?
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .map_err(|err| {
+                    io::Error::new(io::ErrorKind::Other, format!("SystemTimeError: {err}"))
+                })?;
             let as_bytes = [
                 modified.to_be_bytes().as_ref(),
                 md.len().to_be_bytes().as_ref(),
