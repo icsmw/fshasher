@@ -28,8 +28,7 @@ impl Pool {
     ///   - `ReadingStrategy::Scenario(..)` - The scenario strategy can be used to combine different strategies according to the
     ///     file's size.
     /// - `breaker`: The breaker to handle interruptions.
-    /// - `hasher`: reference to a instance of hasher to clone and in worker
-    /// - `reader`: reference to a instance of reader to clone and in worker
+    ///
     /// # Returns
     ///
     /// - A new `Pool` instance.

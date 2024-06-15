@@ -165,8 +165,6 @@ impl Worker {
 /// # Parameters
 ///
 /// - `path`: The path of the file to be hashed.
-/// - `hasher`: The hasher instance to use for hashing the file.
-/// - `reader`: The reader instance to use for reading the file.
 /// - `reading_strategy`: The strategy to use for reading the file.
 /// - `breaker`: The breaker to handle interruptions.
 ///

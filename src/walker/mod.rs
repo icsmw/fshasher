@@ -39,11 +39,11 @@ pub enum Action {
     /// Used by workers to report the results of hashing files to `Walker`.
     ///
     /// # Parameters
-    /// - `u16`: worker's id
+    /// - `u16`: Worker's ID.
     /// - `Vec<(PathBuf, Vec<u8>)>`: A vector of tuples where each tuple contains
     ///   a file path and its corresponding hash.
     /// - `Vec<(PathBuf, E)>`: A vector of tuples where each tuple contains
-    ///   a file path and related error.
+    ///   a file path and the related error.
     Processed(u16, Vec<(PathBuf, Vec<u8>)>, Vec<(PathBuf, E)>),
 
     /// Used by workers to notify `Walker` about the closing of a worker's thread.
@@ -58,6 +58,24 @@ pub enum Action {
     Error(PathBuf, E),
 }
 
+/// `HashItem` contains the path to the file and the state of its hashing.
+///
+/// # Fields
+///
+/// * `PathBuf` - Full file path.
+/// * `Option<Result<Vec<u8>, E>>` - Can have the following values:
+///   * `None` - Right after `collect()` has been called.
+///   * `Some(Result<Vec<u8>, E>)` - The result of hashing; if hashing failed, contains the related
+///     error.
+///
+/// # Values of `Option<Result<Vec<u8>, E>>`
+///
+/// * `None` - If the file was accepted during collecting without errors, but the hashing operation
+///   hasn't been applied to the file yet.
+/// * `Some(Err(E))` - An error that can occur during collecting and attempting to access the file,
+///   or during hashing. In both cases, it will be stored in the item.
+/// * `Some(Ok(Vec<u8>))` - If collecting and hashing were successful, this contains the hash of the
+///   file.
 type HashItem = (PathBuf, Option<Result<Vec<u8>, E>>);
 
 /// `Walker` collects file paths according to a given pattern, then calculates the hash for each
@@ -107,37 +125,52 @@ type HashItem = (PathBuf, Option<Result<Vec<u8>, E>>);
 ///     .hash::<hasher::blake::Blake, reader::buffering::Buffering>().unwrap();
 /// println!("Hash of {}: {:?}", temp_dir().display(), hash);
 /// ```
-///
+
 #[derive(Debug)]
 pub struct Walker {
     /// Settings for the `Walker`.
     opt: Option<Options>,
+
     /// `Breaker` structure for interrupting the path collection and hashing operations.
     breaker: Breaker,
+
     /// Paths collected during the recursive traversal of the paths specified in `Options` and
     /// according to the patterns. This field is populated when `collect()` is called.
     ///
+    /// Results collected as `type HashItem = (PathBuf, Option<Result<Vec<u8>, E>>)`
+    ///
+    /// `HashItem` contains the path to the file and the state of its hashing.
+    ///
     /// # Fields
     ///
-    /// * `PathBuf` - full filepath
-    /// * `Option<Result<Vec<u8>, E>>` - can have next values:
-    ///   * `None` - right after `collect()` has been called
-    ///   * `Result<Vec<u8>, E>` - result of hashing; if hashing was failed, keep related error
+    /// * `PathBuf` - Full file path.
+    /// * `Option<Result<Vec<u8>, E>>` - Can have the following values:
+    ///   * `None` - Right after `collect()` has been called.
+    ///   * `Some(Result<Vec<u8>, E>)` - The result of hashing; if hashing failed, contains the related
+    ///     error.
+    ///
+    /// # Values of `Option<Result<Vec<u8>, E>>`
+    ///
+    /// * `None` - If the file was accepted during collecting without errors, but the hashing operation
+    ///   hasn't been applied to the file yet.
+    /// * `Some(Err(E))` - An error that can occur during collecting and attempting to access the file,
+    ///   or during hashing. In both cases, it will be stored in the item.
+    /// * `Some(Ok(Vec<u8>))` - If collecting and hashing were successful, this contains the hash of the
+    ///   file.
     pub paths: Vec<HashItem>,
+
     /// The resulting hash. Set when `hash()` is called.
     hash: Option<Vec<u8>>,
+
     /// An instance of the channel for tracking the progress of path collection and hashing.
     progress: Option<ProgressChannel>,
 }
-
 impl Walker {
     /// Creates a new instance of `Walker`.
     ///
     /// # Parameters
     ///
     /// - `opt`: An instance of `Options` containing the configuration for `Walker`.
-    /// - `hasher`: An instance of the hasher that will be used for hashing each found file.
-    /// - `reader`: An instance of the reader that will be used for reading each found file.
     ///
     /// # Returns
     ///
@@ -157,15 +190,17 @@ impl Walker {
     ///
     /// # Returns
     ///
-    /// - A new instance of `Walker`.
+    /// - A mutable reference to the instance of `Walker`.
     ///
     /// # Errors
     ///
     /// This method will return an error if the operation is interrupted. By default, `Walker` has
     /// a tolerance level of `Tolerance::LogErrors`, which means that the collection process will
     /// not stop on an IO error; instead, the problematic path will be ignored. To change this strategy,
-    /// set the tolerance level to `Tolerance::StopOnErrors`. With `Tolerance::StopOnErrors`, the `collect`
+    /// set the tolerance level to `Tolerance::StopOnErrors`. With `Tolerance::StopOnErrors`, the `collect()`
     /// method will return an error for any IO error encountered.
+    ///
+    /// Paths that caused errors will be available in the `paths` field or during iteration.
     pub fn collect(&mut self) -> Result<&mut Self, E> {
         let now = Instant::now();
         self.reset();
@@ -239,7 +274,7 @@ impl Walker {
         self.breaker.clone()
     }
 
-    /// This is equal to the number paths, found by `collect()`.
+    /// This is equal to the number of paths found by `collect()`, including not accepted paths.
     ///
     /// # Returns
     ///
@@ -274,8 +309,8 @@ impl Walker {
     /// To change this strategy, set the tolerance level to `Tolerance::StopOnErrors`. With
     /// `Tolerance::StopOnErrors`, the `hash()` method will return an error for any IO error encountered.
     ///
-    /// All ignored paths will be saved into the `invalid` field.
-
+    /// All ignored paths will stay in the `paths` field (vector of `HashItem`), but instead of a hash, they will include
+    /// an `Err(E)`.
     pub fn hash<H: Hasher + 'static, R: Reader + 'static>(&mut self) -> Result<&[u8], E>
     where
         E: From<<H as Hasher>::Error> + From<<R as Reader>::Error>,
@@ -548,11 +583,11 @@ impl Walker {
         Ok(hash)
     }
 
-    /// Returns an iterator to iterate over the calculated hashes.
+    /// Returns an iterator to iterate over the collected `HashItem`s.
     ///
     /// # Returns
     ///
-    /// - `WalkerIter<'_, H, R>`: An iterator to iterate over the calculated hashes.
+    /// - `WalkerIter<'_, H, R>`: An iterator to iterate over the collected `HashItem`s.
     pub fn iter(&self) -> WalkerIter<'_> {
         WalkerIter {
             walker: self,
@@ -567,27 +602,26 @@ impl Walker {
         self.breaker.reset();
     }
 }
-
 /// An iterator over the calculated hashes in a `Walker`.
 ///
-/// `WalkerIter` is used to iterate over the `(PathBuf, H)` pairs that
-/// represent the paths and their corresponding hashes calculated by the `Walker`.
+/// `WalkerIter` is used to iterate over `HashItem` that represent the paths and their corresponding hashes
+/// calculated by the `Walker` or related to path errors.
 pub struct WalkerIter<'a> {
     /// A reference to the `Walker` instance.
     walker: &'a Walker,
-    /// The current position in the `hashes` vector.
+    /// The current position in the `paths` vector.
     pos: usize,
 }
 
 impl<'a> Iterator for WalkerIter<'a> {
-    type Item = &'a (PathBuf, Option<Result<Vec<u8>, E>>);
+    type Item = &'a HashItem;
 
-    /// Advances the iterator and returns the next `(PathBuf, H)` pair.
+    /// Advances the iterator and returns the next `HashItem`.
     ///
     /// # Returns
     ///
-    /// - `Some(&(PathBuf, H))` if there is another hash to return.
-    /// - `None` if there are no more hashes to return.
+    /// - `Some(&HashItem)` if there is another `HashItem` to return.
+    /// - `None` if there are no more items to return.
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos >= self.walker.paths.len() {
             None
@@ -599,14 +633,14 @@ impl<'a> Iterator for WalkerIter<'a> {
 }
 
 impl<'a> IntoIterator for &'a Walker {
-    type Item = &'a (PathBuf, Option<Result<Vec<u8>, E>>);
+    type Item = &'a HashItem;
     type IntoIter = WalkerIter<'a>;
 
     /// Creates an iterator over the calculated hashes in the `Walker`.
     ///
     /// # Returns
     ///
-    /// - `WalkerIter<'a, H, R>`: An iterator to iterate over the calculated hashes.
+    /// - `WalkerIter<'a>`: An iterator to iterate over the `HashItem` items.
     fn into_iter(self) -> Self::IntoIter {
         WalkerIter {
             walker: self,
