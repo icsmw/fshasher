@@ -9,6 +9,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// This reader supports all strategies: `ReadingStrategy::MemoryMapped`, `ReadingStrategy::Buffer` and
+/// `ReadingStrategy::Complete`.
+///
+/// If `ReadingStrategy::MemoryMapped` is used, it maps the file into memory and gives the `hasher`
+/// access to the full content of the file.
+///
+/// The reader should be used carefully because the `hasher` might not be optimized for large amounts of data.
+/// The recommended way to use this reader is with `ReadingStrategy::Scenario`. With this strategy, you will
+/// be able to define a file size limit for using this reader.
 #[derive(Default)]
 pub struct Mapping {
     path: PathBuf,
@@ -19,9 +28,21 @@ pub struct Mapping {
 
 impl Reader for Mapping {
     type Error = E;
+
+    /// Creates an unbound `Mapping` reader with default values.
     fn unbound() -> Self {
         Self::default()
     }
+
+    /// Creates a `Mapping` reader bound to the specified path.
+    ///
+    /// # Parameters
+    ///
+    /// - `path`: The path to the file to be read.
+    ///
+    /// # Returns
+    ///
+    /// - A new instance of `Mapping` reader bound to the specified path.
     fn bound<P: AsRef<Path>>(path: P) -> Self
     where
         Self: Sized,
@@ -34,6 +55,12 @@ impl Reader for Mapping {
         }
     }
 
+    /// Maps the file into memory and returns a reference to its content.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(&[u8])` with the file content if mapping is successful.
+    /// - `Err(E)` if an error occurs or if memory mapping is not supported.
     fn mmap(&mut self) -> Result<&[u8], E> {
         if self.file.is_none() {
             let file = File::open(&self.path)?;
@@ -59,6 +86,16 @@ impl Reader for Mapping {
 }
 
 impl Read for Mapping {
+    /// Reads a chunk of data into the provided buffer.
+    ///
+    /// # Parameters
+    ///
+    /// - `buffer`: A mutable slice of bytes where the read data will be stored.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(usize)`: The number of bytes read.
+    /// - `Err(std::io::Error)`: An error occurred during reading.
     fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
         if self.file.is_none() {
             self.file = Some(File::open(&self.path)?);

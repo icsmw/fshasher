@@ -8,6 +8,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// Regular reader based on reading file chunk by chunk. This reader doesn't support mapping files
+/// into memory and will return an error when attempting to use `ReadingStrategy::MemoryMapped`.
 #[derive(Default)]
 pub struct Buffering {
     path: PathBuf,
@@ -16,9 +18,21 @@ pub struct Buffering {
 
 impl Reader for Buffering {
     type Error = E;
+
+    /// Creates an unbound `Buffering` reader with default values.
     fn unbound() -> Self {
         Self::default()
     }
+
+    /// Creates a `Buffering` reader bound to the specified path.
+    ///
+    /// # Parameters
+    ///
+    /// - `path`: The path to the file to be read.
+    ///
+    /// # Returns
+    ///
+    /// - A new instance of `Buffering` reader bound to the specified path.
     fn bound<P: AsRef<Path>>(path: P) -> Self
     where
         Self: Sized,
@@ -28,12 +42,28 @@ impl Reader for Buffering {
             path: path.as_ref().to_path_buf(),
         }
     }
+
+    /// Returns an error as memory mapping is not supported by this reader.
+    ///
+    /// # Returns
+    ///
+    /// - `Err(E::MemoryMappingNotSupported)` always.
     fn mmap(&mut self) -> Result<&[u8], E> {
         Err(E::MemoryMappingNotSupported)
     }
 }
 
 impl Read for Buffering {
+    /// Reads a chunk of data into the provided buffer.
+    ///
+    /// # Parameters
+    ///
+    /// - `buffer`: A mutable slice of bytes where the read data will be stored.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(usize)`: The number of bytes read.
+    /// - `Err(std::io::Error)`: An error occurred during reading.
     fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
         if self.file.is_none() {
             self.file = Some(File::open(&self.path)?);

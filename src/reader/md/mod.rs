@@ -9,6 +9,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// Actually fake reader. It doesn't mean it does nothing, but instead of reading the file, it reads
+/// the metadata of the file and returns as bytes to the `hasher` the date of the last modification
+/// of the file and its size.
+///
+/// Obviously, this reader will give very fast results, but it should be used only if you are sure
+/// checking the metadata would be enough to make the right conclusion.
 #[derive(Default)]
 pub struct Md {
     path: PathBuf,
@@ -17,9 +23,21 @@ pub struct Md {
 
 impl Reader for Md {
     type Error = E;
+
+    /// Creates an unbound `Md` reader with default values.
     fn unbound() -> Self {
         Self::default()
     }
+
+    /// Creates a `Md` reader bound to the specified path.
+    ///
+    /// # Parameters
+    ///
+    /// - `path`: The path to the file to be read.
+    ///
+    /// # Returns
+    ///
+    /// - A new instance of `Md` reader bound to the specified path.
     fn bound<P: AsRef<Path>>(path: P) -> Self
     where
         Self: Sized,
@@ -29,12 +47,30 @@ impl Reader for Md {
             done: false,
         }
     }
+
+    /// Returns an error as memory mapping is not supported by this reader.
+    ///
+    /// # Returns
+    ///
+    /// - `Err(E::MemoryMappingNotSupported)` always.
     fn mmap(&mut self) -> Result<&[u8], E> {
         Err(E::MemoryMappingNotSupported)
     }
 }
 
 impl Read for Md {
+    /// Reads the metadata of the file and returns it as bytes.
+    ///
+    /// # Parameters
+    ///
+    /// - `buffer`: A mutable slice of bytes where the read data will be stored.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(usize)`: The number of bytes read.
+    /// - `Err(std::io::Error)`: An error occurred during reading.
+    ///
+    /// This method will read the metadata only once. Subsequent reads will return 0.
     fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
         if self.done {
             Ok(0)
