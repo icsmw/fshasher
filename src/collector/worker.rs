@@ -87,7 +87,7 @@ impl Worker {
                 let els = match read_dir(&path) {
                     Ok(els) => els,
                     Err(err) => {
-                        if response(Action::Error(path, err.into(), true)).is_err() {
+                        if response(Action::Processed(Err((path, err.into())))).is_err() {
                             break 'outer;
                         } else {
                             continue;
@@ -97,7 +97,7 @@ impl Worker {
                 let mut collected: Vec<PathBuf> = Vec::new();
                 for el in els.into_iter() {
                     if breaker.is_aborted() {
-                        let _ = response(Action::Processed(collected));
+                        let _ = response(Action::Processed(Ok(collected)));
                         break 'outer;
                     }
                     let path = match el.map(|el| el.path()) {
@@ -106,7 +106,6 @@ impl Worker {
                             if response(Action::Error(
                                 path.join("err__fail_parse_DirEntry__"),
                                 err.into(),
-                                false,
                             ))
                             .is_err()
                             {
@@ -131,7 +130,7 @@ impl Worker {
                         let path = match read_link(&path) {
                             Ok(path) => path,
                             Err(err) => {
-                                if response(Action::Error(path, err.into(), false)).is_err() {
+                                if response(Action::Error(path, err.into())).is_err() {
                                     break 'outer;
                                 } else {
                                     continue;
@@ -147,7 +146,7 @@ impl Worker {
                         }
                     }
                 }
-                if response(Action::Processed(collected)).is_err() {
+                if response(Action::Processed(Ok(collected))).is_err() {
                     break 'outer;
                 }
             }

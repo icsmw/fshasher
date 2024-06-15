@@ -83,7 +83,7 @@ impl Worker {
                 let jobs = match task {
                     Task::Hash(jobs) => jobs,
                     Task::Shutdown => {
-                        break;
+                        break 'outer;
                     }
                 };
                 let mut collected = Vec::new();
@@ -145,7 +145,7 @@ impl Worker {
         }
     }
 
-    /// Waits for the worker to shut down.
+    /// Waits for the worker to shutdown.
     pub fn wait(&mut self) {
         if let Some(handle) = self.handle.take() {
             let _ = handle.join();

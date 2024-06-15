@@ -46,15 +46,14 @@ pub enum Action {
     /// Called by a worker to delegate reading of a found folder to another worker.
     Delegate(PathBuf),
     /// Called by a worker to report found paths to files.
-    Processed(Vec<PathBuf>),
+    Processed(Result<Vec<PathBuf>, (PathBuf, E)>),
     /// Reported by a worker in case of an error.
     ///
     /// # Parameters
     ///
     /// - `PathBuf`: The path that caused the error.
     /// - `E`: The error encountered during processing.
-    /// - `bool`: A flag indicating if the error has finished processing.
-    Error(PathBuf, E, bool),
+    Error(PathBuf, E),
 }
 
 /// The result type for the `collect()` function.
@@ -178,6 +177,27 @@ pub fn collect(
         if breaker.is_aborted() {
             return Err(E::Aborted);
         }
+        fn check(
+            path: PathBuf,
+            err: E,
+            invalid: &mut Vec<(PathBuf, E)>,
+            tolerance: &Tolerance,
+        ) -> Result<(), E> {
+            match tolerance {
+                Tolerance::StopOnErrors => {
+                    error!("entry: {}; error: {err}", path.display());
+                    return Err(err);
+                }
+                Tolerance::LogErrors => {
+                    warn!("entry: {}; error: {err}", path.display());
+                    invalid.push((path, err));
+                }
+                Tolerance::DoNotLogErrors => {
+                    invalid.push((path, err));
+                }
+            };
+            Ok(())
+        }
         let result = 'listener: loop {
             let next = if let Some(next) = pending.take() {
                 next
@@ -197,38 +217,34 @@ pub fn collect(
                     };
                     worker.delegate(next);
                 }
-                Action::Processed(mut paths) => {
+                Action::Processed(processed) => {
                     queue -= 1;
-                    collected.append(&mut paths);
-                    if let Some(ref progress) = progress {
-                        let count = collected.len();
-                        progress.notify(JobType::Collecting, count, count);
-                    }
-                    if let Ok(next) = rx_queue.try_recv() {
-                        pending = Some(next);
-                        continue;
-                    }
-                    if workers.is_all_done() && queue == 0 {
-                        break 'listener Ok((collected, invalid));
+                    match processed {
+                        Ok(mut paths) => {
+                            collected.append(&mut paths);
+                            if let Some(ref progress) = progress {
+                                let count = collected.len();
+                                progress.notify(JobType::Collecting, count, count);
+                            }
+                            if let Ok(next) = rx_queue.try_recv() {
+                                pending = Some(next);
+                                continue;
+                            }
+                            if workers.is_all_done() && queue == 0 {
+                                break 'listener Ok((collected, invalid));
+                            }
+                        }
+                        Err((path, err)) => {
+                            if let Err(err) = check(path, err, &mut invalid, &tolerance) {
+                                break 'listener Err(err);
+                            }
+                        }
                     }
                 }
-                Action::Error(path, err, finished) => {
-                    if finished {
-                        queue -= 1;
+                Action::Error(path, err) => {
+                    if let Err(err) = check(path, err, &mut invalid, &tolerance) {
+                        break 'listener Err(err);
                     }
-                    match tolerance {
-                        Tolerance::StopOnErrors => {
-                            error!("entry: {}; error: {err}", path.display());
-                            break 'listener Err(err);
-                        }
-                        Tolerance::LogErrors => {
-                            warn!("entry: {}; error: {err}", path.display());
-                            invalid.push((path, err));
-                        }
-                        Tolerance::DoNotLogErrors => {
-                            invalid.push((path, err));
-                        }
-                    };
                 }
             }
         };

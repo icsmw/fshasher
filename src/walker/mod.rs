@@ -493,7 +493,7 @@ impl Walker {
             .iter()
             .filter(|(_, h)| if let Some(h) = h { h.is_ok() } else { false })
             .count();
-        self.hash = Some(if valid == 0 {
+        self.hash = Some(if valid == 0 || self.paths.is_empty() {
             Vec::new()
         } else {
             summary.hash()?.to_vec()
