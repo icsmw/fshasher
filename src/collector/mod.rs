@@ -216,6 +216,7 @@ pub fn collect(
                         break 'listener Err(E::NoAvailableWorkers);
                     };
                     worker.delegate(next);
+                    continue;
                 }
                 Action::Processed(processed) => {
                     queue -= 1;
@@ -225,13 +226,6 @@ pub fn collect(
                             if let Some(ref progress) = progress {
                                 let count = collected.len();
                                 progress.notify(JobType::Collecting, count, count);
-                            }
-                            if let Ok(next) = rx_queue.try_recv() {
-                                pending = Some(next);
-                                continue;
-                            }
-                            if workers.is_all_done() && queue == 0 {
-                                break 'listener Ok((collected, invalid));
                             }
                         }
                         Err((path, err)) => {
@@ -246,6 +240,13 @@ pub fn collect(
                         break 'listener Err(err);
                     }
                 }
+            }
+            if let Ok(next) = rx_queue.try_recv() {
+                pending = Some(next);
+                continue;
+            }
+            if workers.is_all_done() && queue == 0 {
+                break 'listener Ok((collected, invalid));
             }
         };
         workers.shutdown();

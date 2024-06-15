@@ -137,7 +137,7 @@ impl Worker {
                                 }
                             }
                         };
-                        if path.is_file() || path.is_dir() {
+                        if path.exists() && (path.is_file() || path.is_dir()) {
                             if check(path, &mut collected).is_err() {
                                 break 'outer;
                             }

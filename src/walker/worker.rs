@@ -30,6 +30,7 @@ pub struct Worker {
     tx_task: Sender<Task>,
     available: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
+    pub id: u16,
 }
 
 impl Worker {
@@ -55,6 +56,7 @@ impl Worker {
         reading_strategy: ReadingStrategy,
         tolerance: Tolerance,
         breaker: Breaker,
+        id: u16,
     ) -> Self
     where
         E: From<<R as Reader>::Error> + From<<H as Hasher>::Error>,
@@ -104,7 +106,7 @@ impl Worker {
                         }
                     };
                 }
-                if response(Action::Processed(collected, reports)).is_err() {
+                if response(Action::Processed(id, collected, reports)).is_err() {
                     break 'outer;
                 }
             }
@@ -117,6 +119,7 @@ impl Worker {
             tx_task,
             available,
             handle: Some(handle),
+            id,
         }
     }
 
@@ -134,8 +137,12 @@ impl Worker {
     /// # Parameters
     ///
     /// - `jobs`: The vector of jobs (paths to files) to be processed by the worker.
-    pub fn delegate(&self, jobs: Vec<PathBuf>) {
+    pub fn delegate(&self, jobs: Vec<PathBuf>) -> bool {
+        if !self.is_available() {
+            return false;
+        }
         let _ = self.tx_task.send(Task::Hash(jobs));
+        true
     }
 
     /// Sends a shutdown signal to the worker.

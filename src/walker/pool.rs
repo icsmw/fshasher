@@ -44,12 +44,13 @@ impl Pool {
         walker::E: From<<R as Reader>::Error> + From<<H as Hasher>::Error>,
     {
         let mut workers: Vec<Worker> = Vec::new();
-        for _ in 0..count {
+        for id in 0..count {
             workers.push(Worker::run::<H, R>(
                 tx_queue.clone(),
                 reading_strategy.clone(),
                 tolerance.clone(),
                 breaker.clone(),
+                id as u16,
             ));
         }
         Self {
@@ -91,17 +92,14 @@ impl Pool {
     ///
     /// - `&mut Self`: The modified `Pool` instance.
     pub fn shutdown(&mut self) -> &mut Self {
-        if !self.shutdowning {
-            for worker in self.workers.iter() {
-                worker.shutdown();
-            }
-            self.shutdowning = true;
+        if self.shutdowning {
+            return self;
+        }
+        self.shutdowning = true;
+        for worker in self.workers.iter() {
+            worker.shutdown();
         }
         self
-    }
-
-    pub fn is_shutdowning(&self) -> bool {
-        self.shutdowning
     }
 
     /// Waits for all workers to shut down.

@@ -39,10 +39,12 @@ pub enum Action {
     /// Used by workers to report the results of hashing files to `Walker`.
     ///
     /// # Parameters
-    ///
-    /// - `Vec<(PathBuf, H)>`: A vector of tuples where each tuple contains
+    /// - `u16`: worker's id
+    /// - `Vec<(PathBuf, Vec<u8>)>`: A vector of tuples where each tuple contains
     ///   a file path and its corresponding hash.
-    Processed(Vec<(PathBuf, Vec<u8>)>, Vec<(PathBuf, E)>),
+    /// - `Vec<(PathBuf, E)>`: A vector of tuples where each tuple contains
+    ///   a file path and related error.
+    Processed(u16, Vec<(PathBuf, Vec<u8>)>, Vec<(PathBuf, E)>),
 
     /// Used by workers to notify `Walker` about the closing of a worker's thread.
     WorkerShutdownNotification,
@@ -367,22 +369,44 @@ impl Walker {
                 paths_per_jobs: usize,
                 tolerance: &Tolerance,
                 hashes: &mut Vec<HashItem>,
+                worker_id: Option<u16>,
             ) -> JobCollecting {
-                for (i, worker) in workers.iter().enumerate() {
+                if paths.is_empty() {
+                    return JobCollecting::NoJobs;
+                }
+                if let Some(id) = worker_id {
+                    let Some(worker) = workers.iter().find(|w| w.id == id) else {
+                        unreachable!("Worker with given ID always exists");
+                    };
                     match get_next_job(paths, paths_per_jobs, tolerance, hashes) {
                         Ok(jobs) => {
-                            if jobs.is_empty() && i == 0 {
-                                // No any worker get a job
+                            if jobs.is_empty() {
                                 return JobCollecting::NoJobs;
-                            } else if jobs.is_empty() && i != 0 {
-                                // At least one worker get a job
-                                break;
                             } else {
                                 worker.delegate(jobs);
                             }
                         }
                         Err(err) => {
                             return JobCollecting::Err(err);
+                        }
+                    }
+                } else {
+                    for (i, worker) in workers.iter().enumerate() {
+                        match get_next_job(paths, paths_per_jobs, tolerance, hashes) {
+                            Ok(jobs) => {
+                                if jobs.is_empty() && i == 0 {
+                                    // No any worker got a job
+                                    return JobCollecting::NoJobs;
+                                } else if jobs.is_empty() && i != 0 {
+                                    // At least one worker got a job
+                                    break;
+                                } else {
+                                    worker.delegate(jobs);
+                                }
+                            }
+                            Err(err) => {
+                                return JobCollecting::Err(err);
+                            }
                         }
                     }
                 }
@@ -396,6 +420,8 @@ impl Walker {
                 paths_per_jobs,
                 &tolerance,
                 &mut hashes,
+                // Deligate jobs to all workers
+                None,
             );
             if !matches!(initialization, JobCollecting::Success) {
                 pool.shutdown().wait();
@@ -419,7 +445,7 @@ impl Walker {
                     break 'outer Err(E::Aborted);
                 }
                 match next {
-                    Action::Processed(processed, reports) => {
+                    Action::Processed(worker_id, processed, reports) => {
                         for (path, err) in reports.into_iter() {
                             // If error reported by Worker, it's already not Tolerance::StopOnErrors
                             let _ = check_err(path, err, &tolerance, &mut hashes);
@@ -433,16 +459,25 @@ impl Walker {
                         if let Some(ref progress) = progress {
                             progress.notify(JobType::Hashing, hashes.len(), total)
                         }
+                        match deligate(
+                            pool.workers(),
+                            &mut paths,
+                            paths_per_jobs,
+                            &tolerance,
+                            &mut hashes,
+                            Some(worker_id),
+                        ) {
+                            JobCollecting::Err(err) => {
+                                break 'outer Err(err);
+                            }
+                            JobCollecting::Success => {}
+                            JobCollecting::NoJobs => {
+                                pool.shutdown();
+                            }
+                        };
                     }
                     Action::WorkerShutdownNotification => {
-                        if pool.is_all_down() {
-                            if let Ok(next) = rx_queue.try_recv() {
-                                pending = Some(next);
-                                continue;
-                            } else {
-                                break 'outer Ok(());
-                            }
-                        }
+                        // One of workers reported shutdowning state
                     }
                     Action::Error(path, err) => {
                         if let Err(err) = check_err(path, err, &tolerance, &mut hashes) {
@@ -450,24 +485,14 @@ impl Walker {
                         }
                     }
                 }
-                if pool.is_shutdowning() {
-                    continue;
+                if pool.is_all_down() {
+                    if let Ok(next) = rx_queue.try_recv() {
+                        pending = Some(next);
+                        continue;
+                    } else {
+                        break 'outer Ok(());
+                    }
                 }
-                match deligate(
-                    pool.workers(),
-                    &mut paths,
-                    paths_per_jobs,
-                    &tolerance,
-                    &mut hashes,
-                ) {
-                    JobCollecting::Err(err) => {
-                        break 'outer Err(err);
-                    }
-                    JobCollecting::Success => {}
-                    JobCollecting::NoJobs => {
-                        pool.shutdown();
-                    }
-                };
             };
             pool.shutdown().wait();
             if let Err(err) = outer {
