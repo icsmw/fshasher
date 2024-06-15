@@ -50,3 +50,76 @@ impl Hasher for Blake {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        hasher, reader,
+        test::{usecase::*, utils},
+        ReadingStrategy, E,
+    };
+
+    #[test]
+    fn correction_buffering() -> Result<(), E> {
+        let usecase = UseCase::unnamed(2, 2, 2, &[])?;
+        utils::compare_same_dest::<hasher::blake::Blake, reader::buffering::Buffering>(
+            &usecase, None,
+        )?;
+        usecase.clean()?;
+        Ok(())
+    }
+
+    #[test]
+    fn changes_buffering() -> Result<(), E> {
+        let usecase = UseCase::unnamed(2, 2, 2, &[])?;
+        utils::check_for_changes::<hasher::blake::Blake, reader::buffering::Buffering>(
+            &usecase, None,
+        )?;
+        usecase.clean()?;
+        Ok(())
+    }
+
+    #[test]
+    fn correction_complete() -> Result<(), E> {
+        let usecase = UseCase::unnamed(2, 2, 2, &[])?;
+        utils::compare_same_dest::<hasher::blake::Blake, reader::buffering::Buffering>(
+            &usecase,
+            Some(ReadingStrategy::Complete),
+        )?;
+        usecase.clean()?;
+        Ok(())
+    }
+
+    #[test]
+    fn changes_complete() -> Result<(), E> {
+        let usecase = UseCase::unnamed(2, 2, 2, &[])?;
+        utils::check_for_changes::<hasher::blake::Blake, reader::buffering::Buffering>(
+            &usecase,
+            Some(ReadingStrategy::Complete),
+        )?;
+        usecase.clean()?;
+        Ok(())
+    }
+
+    #[test]
+    fn correction_mapped() -> Result<(), E> {
+        let usecase = UseCase::unnamed(2, 2, 2, &[])?;
+        utils::compare_same_dest::<hasher::blake::Blake, reader::mapping::Mapping>(
+            &usecase,
+            Some(ReadingStrategy::MemoryMapped),
+        )?;
+        usecase.clean()?;
+        Ok(())
+    }
+
+    #[test]
+    fn changes_mapped() -> Result<(), E> {
+        let usecase = UseCase::unnamed(2, 2, 2, &[])?;
+        utils::check_for_changes::<hasher::blake::Blake, reader::mapping::Mapping>(
+            &usecase,
+            Some(ReadingStrategy::MemoryMapped),
+        )?;
+        usecase.clean()?;
+        Ok(())
+    }
+}

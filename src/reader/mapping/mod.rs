@@ -70,3 +70,34 @@ impl Read for Mapping {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        hasher, reader,
+        test::{usecase::*, utils},
+        ReadingStrategy, E,
+    };
+
+    #[test]
+    fn correction() -> Result<(), E> {
+        let usecase = UseCase::unnamed(2, 2, 2, &[])?;
+        utils::compare_same_dest::<hasher::blake::Blake, reader::mapping::Mapping>(
+            &usecase,
+            Some(ReadingStrategy::MemoryMapped),
+        )?;
+        usecase.clean()?;
+        Ok(())
+    }
+
+    #[test]
+    fn changes() -> Result<(), E> {
+        let usecase = UseCase::unnamed(2, 2, 2, &[])?;
+        utils::check_for_changes::<hasher::blake::Blake, reader::mapping::Mapping>(
+            &usecase,
+            Some(ReadingStrategy::MemoryMapped),
+        )?;
+        usecase.clean()?;
+        Ok(())
+    }
+}

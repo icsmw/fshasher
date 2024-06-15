@@ -3,7 +3,6 @@
 mod breaker;
 pub mod collector;
 pub(crate) mod entry;
-mod error;
 pub mod hasher;
 pub mod reader;
 #[cfg(test)]
@@ -15,4 +14,4 @@ pub use collector::{collect, Tolerance};
 pub use entry::{Entry, Filter};
 pub use hasher::Hasher;
 pub use reader::Reader;
-pub use walker::{JobType, Options, Progress, ReadingStrategy, Tick, Walker};
+pub use walker::{JobType, Options, Progress, ReadingStrategy, Tick, Walker, E};

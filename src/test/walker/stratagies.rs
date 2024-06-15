@@ -1,6 +1,4 @@
-use crate::{
-    collector::Tolerance, error::E, hasher, reader, test::usecase::*, Options, ReadingStrategy,
-};
+use crate::{collector::Tolerance, hasher, reader, test::usecase::*, Options, ReadingStrategy, E};
 
 #[test]
 fn buffer() -> Result<(), E> {

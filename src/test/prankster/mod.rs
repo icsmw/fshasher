@@ -1,8 +1,8 @@
 use std::thread;
 
 use crate::{
-    collector::Tolerance, entry::Entry, error::E, hasher, reader, test::usecase::*, Options,
-    ReadingStrategy,
+    collector::Tolerance, entry::Entry, hasher, reader, test::usecase::*, Options, ReadingStrategy,
+    E,
 };
 
 #[test]

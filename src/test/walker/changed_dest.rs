@@ -1,4 +1,4 @@
-use crate::{error::E, hasher, reader, test::usecase::*, Options, Tolerance};
+use crate::{hasher, reader, test::usecase::*, Options, Tolerance, E};
 
 // This test is about stability to see react on situation when after path had been collected,
 // some files has been removed

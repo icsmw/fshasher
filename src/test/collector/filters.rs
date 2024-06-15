@@ -3,7 +3,7 @@ use entry::{Filter, FilterAccepted, PatternFilter, PatternFilterAccepted};
 use test::usecase::*;
 
 #[test]
-fn filters() -> Result<(), error::E> {
+fn filters() -> Result<(), E> {
     let usecase = UseCase::unnamed(1, 9, 1, &["aaa", "bbb", "ccc"])?;
     let aaa: FilterAccepted = Filter::Files("*.aaa").try_into().unwrap();
     usecase.files.iter().for_each(|p| {
@@ -19,7 +19,7 @@ fn filters() -> Result<(), error::E> {
 }
 
 #[test]
-fn patterns() -> Result<(), error::E> {
+fn patterns() -> Result<(), E> {
     let usecase = UseCase::unnamed(1, 9, 1, &["aaa", "bbb", "ccc"])?;
     let aaa: PatternFilterAccepted = PatternFilter::Accept("*.aaa").try_into().unwrap();
     usecase.files.iter().for_each(|p| {
@@ -48,7 +48,7 @@ fn patterns() -> Result<(), error::E> {
 }
 
 #[test]
-fn files_exclude() -> Result<(), error::E> {
+fn files_exclude() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 9, 3, &["aaa", "bbb", "ccc"])?;
     let breaker = Breaker::new();
     let mut entry = Entry::from(&usecase.root)?;
@@ -78,7 +78,7 @@ fn files_exclude() -> Result<(), error::E> {
 }
 
 #[test]
-fn files_include() -> Result<(), error::E> {
+fn files_include() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 9, 3, &["aaa", "bbb", "ccc"])?;
     let breaker = Breaker::new();
     let mut entry = Entry::from(&usecase.root)?;
@@ -108,7 +108,7 @@ fn files_include() -> Result<(), error::E> {
 }
 
 #[test]
-fn folders_exclude() -> Result<(), error::E> {
+fn folders_exclude() -> Result<(), E> {
     let usecase = UseCase::folders(
         &[
             "aaa",
@@ -134,7 +134,7 @@ fn folders_exclude() -> Result<(), error::E> {
 }
 
 #[test]
-fn folders_include() -> Result<(), error::E> {
+fn folders_include() -> Result<(), E> {
     let usecase = UseCase::folders(
         &[
             "aaa",
@@ -160,7 +160,7 @@ fn folders_include() -> Result<(), error::E> {
 }
 
 #[test]
-fn folders_and_files() -> Result<(), error::E> {
+fn folders_and_files() -> Result<(), E> {
     let usecase = UseCase::folders_and_files(
         &[
             "aaa",
@@ -202,7 +202,7 @@ fn folders_and_files() -> Result<(), error::E> {
 }
 
 #[test]
-fn folders_and_files_common_exclude() -> Result<(), error::E> {
+fn folders_and_files_common_exclude() -> Result<(), E> {
     let usecase = UseCase::folders_and_files(
         &[
             "aaa",
@@ -238,7 +238,7 @@ fn folders_and_files_common_exclude() -> Result<(), error::E> {
 }
 
 #[test]
-fn folders_and_files_common_include() -> Result<(), error::E> {
+fn folders_and_files_common_include() -> Result<(), E> {
     let usecase = UseCase::folders_and_files(
         &[
             "aaa",
@@ -271,7 +271,7 @@ fn folders_and_files_common_include() -> Result<(), error::E> {
 }
 
 #[test]
-fn patterns_exclude() -> Result<(), error::E> {
+fn patterns_exclude() -> Result<(), E> {
     let usecase = UseCase::folders_and_files(
         &[
             "aaa",
@@ -307,7 +307,7 @@ fn patterns_exclude() -> Result<(), error::E> {
 }
 
 #[test]
-fn patterns_include() -> Result<(), error::E> {
+fn patterns_include() -> Result<(), E> {
     let usecase = UseCase::folders_and_files(
         &[
             "aaa",
@@ -340,7 +340,7 @@ fn patterns_include() -> Result<(), error::E> {
 }
 
 #[test]
-fn patterns_cmb() -> Result<(), error::E> {
+fn patterns_cmb() -> Result<(), E> {
     let usecase = UseCase::folders_and_files(
         &[
             "aaa",

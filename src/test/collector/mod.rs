@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::thread;
 
 #[test]
-fn correction() -> Result<(), error::E> {
+fn correction() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     let breaker = Breaker::new();
     let mut a = collector::collect(
@@ -43,7 +43,7 @@ fn correction() -> Result<(), error::E> {
 }
 
 #[test]
-fn stress() -> Result<(), error::E> {
+fn stress() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     let breaker = Breaker::new();
     for _ in 0..get_stress_iterations_count() {
@@ -80,7 +80,7 @@ fn stress() -> Result<(), error::E> {
 }
 
 #[test]
-fn cancellation() -> Result<(), error::E> {
+fn cancellation() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     let breaker = Breaker::new();
     breaker.abort();
@@ -97,7 +97,7 @@ fn cancellation() -> Result<(), error::E> {
 }
 
 #[test]
-fn cancellation_stress() -> Result<(), error::E> {
+fn cancellation_stress() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     for _ in 0..get_stress_iterations_count() {
         let breaker = Breaker::new();
@@ -116,7 +116,7 @@ fn cancellation_stress() -> Result<(), error::E> {
 }
 
 #[test]
-fn cancellation_during() -> Result<(), error::E> {
+fn cancellation_during() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &[])?;
     let breaker = Breaker::new();
     let breaker_progress = breaker.clone();
@@ -142,7 +142,7 @@ fn cancellation_during() -> Result<(), error::E> {
 }
 
 #[test]
-fn cancellation_during_stress() -> Result<(), error::E> {
+fn cancellation_during_stress() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &[])?;
     for _ in 0..get_stress_iterations_count() {
         let breaker = Breaker::new();

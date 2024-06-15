@@ -24,7 +24,7 @@ pub enum ReadingStrategy {
 }
 
 /// Configuration options for the `Walker`.
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Options {
     /// Tolerance level for error handling. The level of tolerance is used in the scope of collecting files
     /// and hashing files. In case of collecting, IO errors could be ignored (for example, errors related to

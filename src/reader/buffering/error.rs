@@ -1,7 +1,7 @@
 use std::io;
 use thiserror::Error;
 
-use crate::{error, walker};
+use crate::walker;
 
 #[derive(Error, Debug)]
 pub enum E {

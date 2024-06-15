@@ -8,43 +8,15 @@ use std::env::temp_dir;
 use crate::{
     collector::Tolerance,
     entry::Entry,
-    error::E,
     hasher, reader,
-    test::{get_stress_iterations_count, usecase::*},
-    Options,
+    test::{get_stress_iterations_count, usecase::*, utils},
+    Options, E,
 };
 
-fn test_dest_for_correction(usecase: &UseCase) -> Result<(), E> {
-    let mut hashes: Vec<Vec<u8>> = Vec::new();
-    for _ in 0..2 {
-        let mut walker = Options::new()
-            .entry(Entry::from(&usecase.root)?)?
-            .tolerance(Tolerance::LogErrors)
-            .walker()?;
-        walker.collect()?;
-        assert_eq!(walker.paths.len(), usecase.files.len());
-        hashes.push(
-            walker
-                .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?
-                .to_vec(),
-        );
-        assert_eq!(
-            walker
-                .paths
-                .iter()
-                .filter(|(_, h)| if let Some(h) = h { h.is_ok() } else { false })
-                .count(),
-            usecase.files.len()
-        );
-    }
-    assert_eq!(hashes.len(), 2);
-    assert_eq!(hashes[0], hashes[1]);
-    Ok(())
-}
 #[test]
 fn correction() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
-    test_dest_for_correction(&usecase)?;
+    utils::compare_same_dest::<hasher::blake::Blake, reader::buffering::Buffering>(&usecase, None)?;
     usecase.clean()?;
     Ok(())
 }
@@ -53,42 +25,18 @@ fn correction() -> Result<(), E> {
 fn stress() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     for _ in 0..get_stress_iterations_count() {
-        test_dest_for_correction(&usecase)?;
+        utils::compare_same_dest::<hasher::blake::Blake, reader::buffering::Buffering>(
+            &usecase, None,
+        )?;
     }
     usecase.clean()?;
-    Ok(())
-}
-
-fn test_dest_for_changes(usecase: &UseCase) -> Result<(), E> {
-    let mut walker_a = Options::new()
-        .entry(Entry::from(&usecase.root)?)?
-        .tolerance(Tolerance::LogErrors)
-        .walker()?;
-    walker_a.collect()?;
-    assert_eq!(walker_a.paths.len(), usecase.files.len());
-    let hash_a = walker_a
-        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?
-        .to_vec();
-    usecase.change(10)?;
-    let mut walker_b = Options::new()
-        .entry(Entry::from(&usecase.root)?)?
-        .tolerance(Tolerance::LogErrors)
-        .walker()?;
-    walker_b.collect()?;
-    assert_eq!(walker_b.paths.len(), usecase.files.len());
-    let hash_b = walker_b
-        .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?
-        .to_vec();
-    assert_eq!(walker_a.count(), usecase.files.len());
-    assert_eq!(walker_b.count(), usecase.files.len());
-    assert_ne!(hash_a, hash_b);
     Ok(())
 }
 
 #[test]
 fn changes() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
-    test_dest_for_changes(&usecase)?;
+    utils::check_for_changes::<hasher::blake::Blake, reader::buffering::Buffering>(&usecase, None)?;
     usecase.clean()?;
     Ok(())
 }
@@ -97,7 +45,9 @@ fn changes() -> Result<(), E> {
 fn changes_stress() -> Result<(), E> {
     let usecase = UseCase::unnamed(5, 10, 3, &["aaa", "bbb", "ccc"])?;
     for _ in 0..get_stress_iterations_count() {
-        test_dest_for_changes(&usecase)?;
+        utils::check_for_changes::<hasher::blake::Blake, reader::buffering::Buffering>(
+            &usecase, None,
+        )?;
     }
     usecase.clean()?;
     Ok(())

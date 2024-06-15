@@ -1,6 +1,6 @@
 use std::thread;
 
-use crate::{error::E, hasher, reader, test::usecase::*, JobType, Options};
+use crate::{hasher, reader, test::usecase::*, JobType, Options, E};
 
 #[test]
 fn progress() -> Result<(), E> {

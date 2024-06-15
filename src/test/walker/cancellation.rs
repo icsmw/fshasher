@@ -1,6 +1,6 @@
 use std::thread;
 
-use crate::{error::E, hasher, reader, test::usecase::*, walker, Options};
+use crate::{hasher, reader, test::usecase::*, walker, Options, E};
 
 #[test]
 fn cancellation() -> Result<(), E> {
