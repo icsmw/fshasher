@@ -17,10 +17,7 @@ pub use progress::{JobType, Progress, ProgressChannel, Tick};
 use std::{
     io, mem,
     path::PathBuf,
-    sync::{
-        mpsc::{channel, Receiver, Sender},
-        Arc, RwLock,
-    },
+    sync::mpsc::{channel, Receiver, Sender},
     thread::{self, JoinHandle},
     time::Instant,
 };
@@ -103,11 +100,10 @@ type HashItem = (PathBuf, Option<Result<Vec<u8>, E>>);
 /// let mut walker = Options::new()
 ///     .entry(Entry::from(temp_dir()).unwrap()).unwrap()
 ///     .tolerance(Tolerance::LogErrors)
-///     .walker(
-///         hasher::blake::Blake::default(),
-///         reader::buffering::Buffering::default(),
-///     ).unwrap();
-/// println!("Hash of {}: {:?}", temp_dir().display(), walker.collect().unwrap().hash().unwrap())
+///     .walker().unwrap();
+/// let hash = walker.collect().unwrap()
+///     .hash::<hasher::blake::Blake, reader::buffering::Buffering>().unwrap();
+/// println!("Hash of {}: {:?}", temp_dir().display(), hash);
 /// ```
 ///
 #[derive(Debug)]
@@ -220,10 +216,7 @@ impl Walker {
     ///     .unwrap()
     ///     .tolerance(Tolerance::LogErrors)
     ///     .progress(10)
-    ///     .walker(
-    ///         hasher::blake::Blake::default(),
-    ///         reader::buffering::Buffering::default(),
-    ///     )
+    ///     .walker()
     ///     .unwrap();
     /// let progress = walker.progress().unwrap();
     /// let breaker = walker.breaker();

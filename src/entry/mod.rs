@@ -96,10 +96,7 @@ impl Entry {
     ///     let mut walker = Options::new()
     ///         .entry(Entry::from(&entry).unwrap())
     ///         .unwrap()
-    ///         .walker(
-    ///             hasher::blake::Blake::default(),
-    ///             reader::buffering::Buffering::default(),
-    ///         );
+    ///         .walker();
     ///     // ... some work here
     ///     let _ = remove_dir(&entry);
     /// ```
@@ -133,10 +130,7 @@ impl Entry {
     ///     opt = opt.entry(Entry::from(p).unwrap()).unwrap();
     /// }
     ///
-    /// let mut walker = opt.walker(
-    ///     hasher::blake::Blake::default(),
-    ///     reader::buffering::Buffering::default(),
-    /// );
+    /// let mut walker = opt.walker();
     /// // ... some work here
     /// entries.iter().for_each(|p| {
     ///     let _ = remove_dir(p);

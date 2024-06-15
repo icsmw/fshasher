@@ -57,16 +57,14 @@ General use cases for `fshasher` include:
 ```
 use fshasher::{Options, Entry, Tolerance, hasher, reader};
 use std::env::temp_dir;
-
+///
 let mut walker = Options::new()
     .entry(Entry::from(temp_dir()).unwrap()).unwrap()
     .tolerance(Tolerance::LogErrors)
-    .walker(
-        hasher::blake::Blake::default(),
-        reader::buffering::Buffering::default(),
-    ).unwrap();
-
-println!("Hash of {}: {:?}", temp_dir().display(), walker.collect().unwrap().hash().unwrap())
+    .walker().unwrap();
+let hash = walker.collect().unwrap()
+    .hash::<hasher::blake::Blake, reader::buffering::Buffering>().unwrap();
+println!("Hash of {}: {:?}", temp_dir().display(), hash);
 ```
 
 # Configuration

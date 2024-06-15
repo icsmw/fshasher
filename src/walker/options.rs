@@ -1,5 +1,5 @@
 use super::{Entry, Filter, Walker, E};
-use crate::{collector::Tolerance, Hasher, Reader};
+use crate::collector::Tolerance;
 use std::{ops::Range, path::Path, thread};
 
 pub(crate) const MIN_THREADS_COUNT: usize = 1;
