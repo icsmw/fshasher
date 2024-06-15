@@ -137,8 +137,7 @@ pub type CollectingResult = Result<(Vec<PathBuf>, Vec<(PathBuf, E)>), E>;
 ///     &breaker,
 ///     &Tolerance::LogErrors,
 ///     &None,
-/// )
-/// .is_err());
+/// ));
 /// println!("Collecting operation has been aborted");
 /// ```
 pub fn collect(
