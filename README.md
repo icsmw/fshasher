@@ -231,6 +231,11 @@ Out of the box, `fshasher` includes the following readers:
 
 - `hasher::blake::Blake` - A hasher based on the `blake3` crate.
 
+Here is a couple examples:
+
+- [Custom Reader](examples/custom_reader)
+- [Custom Hasher](examples/custom_hasher)
+
 # Behaviour, Errors, Logs
 
 ## Error Handling
