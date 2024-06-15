@@ -3,9 +3,9 @@ mod error;
 use super::Reader;
 use error::E;
 use std::io;
+use std::time::UNIX_EPOCH;
 use std::{
     io::Read,
-    os::unix::fs::MetadataExt,
     path::{Path, PathBuf},
 };
 
@@ -72,15 +72,24 @@ impl Read for Md {
         } else {
             self.done = true;
             let md = self.path.metadata()?;
-            let like_hash = format!("{};{}", md.ctime(), md.size());
-            let as_bytes = like_hash.as_bytes();
+            let modified = if let Ok(st) = md.modified() {
+                st.duration_since(UNIX_EPOCH).map(|d| d.as_nanos())
+            } else {
+                Ok(0)
+            }
+            .unwrap_or(0);
+            let as_bytes = [
+                modified.to_be_bytes().as_ref(),
+                md.len().to_be_bytes().as_ref(),
+            ]
+            .concat();
             if as_bytes.len() > buffer.len() {
                 Err(io::Error::new(
                     io::ErrorKind::Other,
                     String::from("Md reader needs at least 255 bytes buffer"),
                 ))
             } else {
-                buffer[..as_bytes.len()].copy_from_slice(as_bytes);
+                buffer[..as_bytes.len()].copy_from_slice(&as_bytes);
                 Ok(as_bytes.len())
             }
         }
