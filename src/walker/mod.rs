@@ -170,7 +170,7 @@ impl Walker {
         let opt = self.opt.as_mut().ok_or(E::IsNotInited)?;
         let progress = self.progress.as_ref().map(|(progress, _)| progress.clone());
         for entry in opt.entries.iter() {
-            let (collected, mut invalid) = collect(
+            let (collected, invalid) = collect(
                 &progress,
                 entry,
                 &self.breaker,
@@ -179,6 +179,12 @@ impl Walker {
             )?;
             self.paths
                 .append(&mut collected.into_iter().map(|p| (p, None)).collect());
+            self.paths.append(
+                &mut invalid
+                    .into_iter()
+                    .map(|(p, e)| (p, Some(Err(e.into()))))
+                    .collect(),
+            );
         }
         debug!(
             "collected {} paths in {}µs / {}ms / {}s",
@@ -337,7 +343,11 @@ impl Walker {
             ) -> Result<Vec<PathBuf>, E> {
                 let mut jobs = Vec::new();
                 while jobs.len() < paths_per_jobs && !paths.is_empty() {
-                    let (path, _) = paths.remove(0);
+                    let (path, state) = paths.remove(0);
+                    if state.is_some() {
+                        // Path marked by collector as caused error
+                        continue;
+                    }
                     if !path.exists() {
                         check_err(
                             path,

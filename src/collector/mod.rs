@@ -58,7 +58,7 @@ pub enum Action {
 }
 
 /// The result type for the `collect()` function.
-pub type CollectingResult = Result<(Vec<PathBuf>, Vec<PathBuf>), E>;
+pub type CollectingResult = Result<(Vec<PathBuf>, Vec<(PathBuf, E)>), E>;
 
 /// Collects file paths based on the provided entry and filters.
 ///
@@ -170,7 +170,7 @@ pub fn collect(
     let entry_inner = entry.clone();
     let handle: JoinHandle<CollectingResult> = thread::spawn(move || {
         let mut collected: Vec<PathBuf> = Vec::new();
-        let mut invalid: Vec<PathBuf> = Vec::new();
+        let mut invalid: Vec<(PathBuf, E)> = Vec::new();
         let mut workers = Pool::new(threads, entry_inner.clone(), tx_queue.clone(), &breaker);
         debug!("Created pool with {threads} workers for paths collecting");
         let mut pending: Option<Action> = None;
@@ -223,10 +223,10 @@ pub fn collect(
                         }
                         Tolerance::LogErrors => {
                             warn!("entry: {}; error: {err}", path.display());
-                            invalid.push(path);
+                            invalid.push((path, err));
                         }
                         Tolerance::DoNotLogErrors => {
-                            invalid.push(path);
+                            invalid.push((path, err));
                         }
                     };
                 }

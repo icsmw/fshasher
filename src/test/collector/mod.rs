@@ -4,6 +4,7 @@ use walker::Progress;
 
 use crate::test::{get_stress_iterations_count, usecase::*, utils::*};
 use crate::*;
+use std::path::PathBuf;
 use std::thread;
 
 #[test]
@@ -29,11 +30,14 @@ fn correction() -> Result<(), error::E> {
     assert_eq!(a.0.len(), b.0.len());
     assert_eq!(a.1.len(), b.1.len());
     a.0.sort();
-    a.1.sort();
+    a.1.sort_by(|(a, _), (b, _)| a.cmp(b));
     b.0.sort();
-    b.1.sort();
+    b.1.sort_by(|(a, _), (b, _)| a.cmp(b));
     assert_eq!(paths_to_cmp_string(&a.0), paths_to_cmp_string(&b.0));
-    assert_eq!(paths_to_cmp_string(&a.1), paths_to_cmp_string(&b.1));
+    assert_eq!(
+        paths_to_cmp_string_vec(a.1.iter().map(|(p, _)| p).collect::<Vec<&PathBuf>>()),
+        paths_to_cmp_string_vec(b.1.iter().map(|(p, _)| p).collect::<Vec<&PathBuf>>())
+    );
     usecase.clean()?;
     Ok(())
 }
@@ -62,11 +66,14 @@ fn stress() -> Result<(), error::E> {
         assert_eq!(a.0.len(), b.0.len());
         assert_eq!(a.1.len(), b.1.len());
         a.0.sort();
-        a.1.sort();
+        a.1.sort_by(|(a, _), (b, _)| a.cmp(b));
         b.0.sort();
-        b.1.sort();
+        b.1.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(paths_to_cmp_string(&a.0), paths_to_cmp_string(&b.0));
-        assert_eq!(paths_to_cmp_string(&a.1), paths_to_cmp_string(&b.1));
+        assert_eq!(
+            paths_to_cmp_string_vec(a.1.iter().map(|(p, _)| p).collect::<Vec<&PathBuf>>()),
+            paths_to_cmp_string_vec(b.1.iter().map(|(p, _)| p).collect::<Vec<&PathBuf>>())
+        );
     }
     usecase.clean()?;
     Ok(())
