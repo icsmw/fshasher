@@ -131,14 +131,16 @@ pub type CollectingResult = Result<(Vec<PathBuf>, Vec<(PathBuf, E)>), E>;
 ///     println!("Breaking collecting with the first tick");
 ///     breaker_inner.abort();
 /// });
-/// assert!(collect(
+/// let result = collect(
 ///     &Some(progress),
 ///     &Entry::from(temp_dir()).unwrap(),
 ///     &breaker,
 ///     &Tolerance::LogErrors,
 ///     &None,
-/// ));
-/// println!("Collecting operation has been aborted");
+/// );
+/// // In case of empty dest folder, collect() will finish without errors,
+/// // because no time to check breaker state.
+/// println!("Collecting operation has been aborted: {result:?}");
 /// ```
 pub fn collect(
     progress: &Option<Progress>,
