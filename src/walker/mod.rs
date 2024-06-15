@@ -382,11 +382,17 @@ impl Walker {
                         Ok(jobs) => {
                             if jobs.is_empty() {
                                 return JobCollecting::NoJobs;
-                            } else if !worker.delegate(jobs) {
+                            } else if worker.is_available() {
+                                worker.delegate(jobs);
+                            } else if let Some(worker) = workers.iter().find(|w| w.is_available()) {
                                 error!(
-                                    "Hasher worker #{id} cannot accept a job, because it's down."
+                                    "Hasher worker #{id} cannot accept a job, because it's down. Jobs deligated to another worker"
                                 );
-                                // TODO: deligate to another worker
+                                worker.delegate(jobs);
+                            } else {
+                                error!(
+                                    "Hasher worker #{id} cannot accept a job, because it's down. No other available workers"
+                                );
                             }
                         }
                         Err(err) => {
