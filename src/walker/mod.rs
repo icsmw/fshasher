@@ -488,7 +488,16 @@ impl Walker {
             .join()
             .map_err(|e| E::JoinError(format!("{e:?}")))??;
         self.paths = mem::take(&mut hashes);
-        self.hash = Some(summary.hash()?.to_vec());
+        let valid = self
+            .paths
+            .iter()
+            .filter(|(_, h)| if let Some(h) = h { h.is_ok() } else { false })
+            .count();
+        self.hash = Some(if valid == 0 {
+            Vec::new()
+        } else {
+            summary.hash()?.to_vec()
+        });
         self.progress = opt.progress.map(Progress::channel);
         let hash = if let Some(ref hash) = self.hash {
             hash

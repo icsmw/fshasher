@@ -114,7 +114,18 @@ fn stress_permissions_issue() -> Result<(), E> {
             .collect()?
             .hash::<hasher::blake::Blake, reader::buffering::Buffering>()?
             .to_vec();
-        if walker.iter().count() > 0 {
+        if walker
+            .iter()
+            .filter(|(_, h)| {
+                if let Some(hash) = h {
+                    hash.is_ok()
+                } else {
+                    false
+                }
+            })
+            .count()
+            > 0
+        {
             assert!(!hash.is_empty());
         } else {
             assert!(hash.is_empty());
