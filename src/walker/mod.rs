@@ -268,7 +268,10 @@ impl Walker {
     ///     // Abort collecting as soon as it's started
     ///     breaker.abort();
     /// });
-    /// assert!(matches!(walker.collect().err().unwrap(), E::Aborted));
+    /// let result = walker.collect();
+    /// // In case of empty dest folder, collect() will finish without errors,
+    /// // because no time to check breaker state.
+    /// println!("Collecting operation has been aborted: {result:?}");
     /// ```
     pub fn breaker(&self) -> Breaker {
         self.breaker.clone()
