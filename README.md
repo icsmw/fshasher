@@ -20,7 +20,11 @@
 -   [Patterns](#patterns)
 -   [Reading Strategy](#reading-strategy)
 
-3. [Extending: Hasher & Reader](#extending-hasher-reader)
+3. [Hasher & Reader](#hasher-and-reader)
+
+-   [Default](#default)
+-   [Hashers as Features](#hashers-as-features)
+-   [Extending](#extending)
 
 4. [Behaviour, Errors, Logs](#behaviour-errors-logs)
 
@@ -217,7 +221,7 @@ In the following example:
 
 > **Note**: There is a very small chance to find a way to increase performance using `ReadingStrategy`, but in terms of CPU load, the difference can be quite significant.
 
-# Hasher & Reader
+# Hasher And Reader
 
 ## Default
 
@@ -243,7 +247,7 @@ Enabling `use_sha2` allows the use of the following hashers (based on the `sha2`
 my_crate = { version = "0.1", features = ["use_sha2"] }
 ```
 
-## Extending: Hasher & Reader
+## Extending
 
 Implementing a custom `hasher` can be achieved by implementing the `Hasher` trait. Similarly, implementing a custom `reader` requires the implementation of the `Reader` trait.
 
