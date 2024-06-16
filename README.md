@@ -217,21 +217,37 @@ In the following example:
 
 > **Note**: There is a very small chance to find a way to increase performance using `ReadingStrategy`, but in terms of CPU load, the difference can be quite significant.
 
-# Extending: Hasher & Reader
+# Hasher & Reader
 
-Implementing a custom `hasher` can be achieved by implementing the `Hasher: Send + Sync` trait. Similarly, implementing a custom `reader` requires the implementation of the `Reader: Send + Sync` trait.
+## Default
 
 Out of the box, `fshasher` includes the following readers:
 
 - `reader::buffering::Buffering` - A "classic" reader that reads the file chunk by chunk until the end. It doesn't support mapping the file into memory (cannot be used with `ReadingStrategy::MemoryMapped`).
 - `reader::mapping::Mapping` - Supports mapping the file into memory (can be used with `ReadingStrategy::MemoryMapped`) and "classic" reading chunk by chunk until the end of the file.
-- `reader::md::Md` - Instead reading of file, this reader creates a byte slice with date of last modification of file and size. Obviously, this reader will give very fast results, but it should be used only if you are sure checking the metadata would be enough to make the right conclusion.
+- `reader::md::Md` - Instead of reading the file, this reader creates a byte slice with the date of the last modification of the file and its size. Obviously, this reader will give very fast results, but it should be used only if you are sure that checking the metadata would be enough to make the right conclusion.
 
 `fshasher` includes only one hasher out of the box:
 
 - `hasher::blake::Blake` - A hasher based on the `blake3` crate.
 
-Here is a couple examples:
+## Hashers as Features
+
+Enabling `use_sha2` allows the use of the following hashers (based on the `sha2` crate):
+
+- `hasher::sha256::Sha256` - More versatile and often used in systems with more limited resources or where compatibility with 32-bit systems is required.
+- `hasher::sha512::Sha512` - Preferred for systems with a 64-bit architecture.
+
+```toml
+[dependencies]
+my_crate = { version = "0.1", features = ["use_sha2"] }
+```
+
+## Extending: Hasher & Reader
+
+Implementing a custom `hasher` can be achieved by implementing the `Hasher` trait. Similarly, implementing a custom `reader` requires the implementation of the `Reader` trait.
+
+Here are a couple of examples:
 
 - [Custom Reader](examples/custom_reader)
 - [Custom Hasher](examples/custom_hasher)

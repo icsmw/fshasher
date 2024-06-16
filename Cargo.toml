@@ -14,19 +14,23 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-blake3 = "1.5.1"
-env_logger = "0.11.3"
-glob = "0.3.1"
-log = "0.4.21"
-memmap2 = "0.9.4"
-thiserror = "1.0.61"
+blake3 = "1.5"
+env_logger = "0.11"
+glob = "0.3"
+log = "0.4"
+memmap2 = "0.9"
+thiserror = "1.0"
+sha2 = { version = "0.10", optional = true }
+
+[features]
+use_sha2 = ["sha2"]
 
 [dev-dependencies]
-rand = "0.8.5"
-ctor = "0.2.8"
+rand = "0.8"
+ctor = "0.2"
 
 [dev-dependencies.uuid]
-version = "1.8.0"
+version = "1.8"
 features = [
     "v4",                # Lets you generate random UUIDs
     "fast-rng",          # Use a faster (but still sufficiently random) RNG
