@@ -48,8 +48,4 @@ impl Hasher for CustomHasher {
         self.hash = Some(self.hasher.clone().finalize().to_vec());
         Ok(())
     }
-
-    fn clone(&self) -> Self {
-        Self::new()
-    }
 }

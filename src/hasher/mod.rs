@@ -1,4 +1,9 @@
 pub mod blake;
+#[cfg(feature = "use_sha2")]
+pub mod sha256;
+#[cfg(feature = "use_sha2")]
+pub mod sha512;
+
 use crate::walker;
 use std::error;
 
@@ -58,11 +63,4 @@ pub trait Hasher: Send + Sync {
     /// - `Result<&[u8], Self::Error>`: On success, returns a reference to the computed hash. On failure,
     ///   returns an error of type `Self::Error`.
     fn hash(&self) -> Result<&[u8], Self::Error>;
-
-    /// Creates a clone of the hasher.
-    ///
-    /// # Returns
-    ///
-    /// - `Self`: A cloned instance of the hasher.
-    fn clone(&self) -> Self;
 }
