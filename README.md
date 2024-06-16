@@ -150,10 +150,12 @@ The following example:
 ```ignore
     let music_2023 = Entry::from("music/2023")?
         .pattern(PatternFilter::Accept("*.flac"))?
-        .pattern(PatternFilter::Accept("*.mp3"))?;
+        .pattern(PatternFilter::Accept("*.mp3"))?
+        .pattern(PatternFilter::Ignore("*Bieber*"))?;
     let music_2024 = Entry::from("music/2023")?
         .pattern(PatternFilter::Accept("*.flac"))?
-        .pattern(PatternFilter::Accept("*.mp3"))?;
+        .pattern(PatternFilter::Accept("*.mp3"))?
+        .pattern(PatternFilter::Ignore("*Taylor Swift*"))?;
     let walker = Options::new()
         .entry(music_2023)?
         .entry(music_2024)?
@@ -171,13 +173,13 @@ Next example:
 
 ```ignore
     let music_2023 = Entry::from("music/2023")?.pattern(PatternFilter::Cmb(vec![
-        PatternFilter::Accept("*.flac")?,
-        PatternFilter::Ignore("*Bieber*")?,
-    ]));
+        PatternFilter::Accept("*.flac"),
+        PatternFilter::Ignore("*Bieber*"),
+    ]))?;
     let music_2024 = Entry::from("music/2023")?.pattern(PatternFilter::Cmb(vec![
-        PatternFilter::Accept("*.flac")?,
-        PatternFilter::Ignore("*Taylor Swift*")?,
-    ]));
+        PatternFilter::Accept("*.flac"),
+        PatternFilter::Ignore("*Taylor Swift*"),
+    ]))?;
     let walker = Options::new()
         .entry(music_2023)?
         .entry(music_2024)?
@@ -244,7 +246,7 @@ Enabling `use_sha2` allows the use of the following hashers (based on the `sha2`
 
 ```toml
 [dependencies]
-my_crate = { version = "0.1", features = ["use_sha2"] }
+fshasher = { version = "0.1", features = ["use_sha2"] }
 ```
 
 ## Extending
@@ -272,7 +274,7 @@ If some files cause permission errors, it isn't a "problem" of the file collecto
 
 Another situation is when the list of collected files changes during hash calculation. In this case, the `hash()` function can still return a hash that reflects the changes in any way (for example, if some file(s) have been removed).
 
-Meanwhile, the list of files that caused errors will be available in the `Walker` field `ignored`.
+Meanwhile, the list of files that caused errors will be available in the `Walker`, but `HashItem` will include error instead hash of file.
 
 Ultimately, whether to ignore errors or not is up to the developer's choice.
 
