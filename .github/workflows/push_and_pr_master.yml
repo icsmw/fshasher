@@ -38,12 +38,18 @@ jobs:
         with:
           rust-version: ${{ matrix.rust }}
       - name: Run tests (dev)
-        run: cargo test -- --nocapture
+        run: cargo test --all-features -- --nocapture
         env:
           RUST_LOG: "debug"
           FSHASHER_STRESS_TEST_ITER_LIM: 50
       - name: Run tests (release)
-        run: cargo test --release -- --nocapture
+        run: cargo test --all-features --release -- --nocapture
         env:
           RUST_LOG: "debug"
           FSHASHER_STRESS_TEST_ITER_LIM: 50
+      - name: Check example custom_hasher
+        run: cargo run
+        working-directory: ./examples/custom_hasher
+      - name: Check example custom_reader
+        run: cargo run
+        working-directory: ./examples/custom_reader
