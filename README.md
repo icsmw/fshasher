@@ -186,6 +186,30 @@ Next example:
         .walker(..);
 ```
 
+Конечно! Вот улучшенная версия вашей документации в формате Markdown (MD):
+
+## Rules in Files
+
+You can make `fshasher` consider rules from files (like `.gitignore`). `fshasher` will check for each folder's rule file and parse it to extract all glob patterns.
+
+```ignore
+use fshasher::{Entry, Options, ContextFile};
+use std::path::PathBuf;
+
+let mut opt = Options::new();
+let mut walker = Options::new().entry(
+    Entry::new()
+        .entry(PathBuf::from("my/entry/path"))
+        .unwrap()
+        .context(
+            ContextFile::Ignore(".gitignore")
+        )
+    ).unwrap().walker();
+```
+
+- **`ContextFile::Ignore`** - All rules in the file will be used as ignore rules. If the path matches, it will be ignored. Ignore rules are used regularly. This means the rule will be applied to the full path: both folder paths and file paths will be checked.
+- **`ContextFile::Accept`** - All rules in the file will be used as accept rules. If the path matches, it will be accepted. If this rule from the file doesn't match, the file will be ignored. Accept rules are used in a non-regular way. This means the rule will be applied only to file paths; folder path checks will be skipped.
+
 ## Reading Strategy
 
 Configuring a reading strategy helps optimize the hashing process to match a specific system's capabilities. On the one hand, the faster a file is read, the sooner its hashing can begin. On the other hand, hashing too much data at once can reduce performance or overload the CPU. To find a balance, the `ReadingStrategy` can be used.
