@@ -1,3 +1,4 @@
+mod context;
 pub mod error;
 mod pool;
 mod worker;
@@ -7,6 +8,7 @@ use crate::{
     entry::Entry,
     walker::{options, JobType, Progress},
 };
+use context::Context;
 pub use error::E;
 use log::{debug, error, warn};
 pub use pool::Pool;
@@ -168,6 +170,7 @@ pub fn collect(
     }
     let threads = threads.unwrap_or(cores);
     let entry_inner = entry.clone();
+    let mut context = Context::new(&entry.context);
     let handle: JoinHandle<CollectingResult> = thread::spawn(move || {
         let mut collected: Vec<PathBuf> = Vec::new();
         let mut invalid: Vec<(PathBuf, E)> = Vec::new();
@@ -212,18 +215,29 @@ pub fn collect(
             }
             match next {
                 Action::Delegate(next) => {
-                    queue += 1;
                     let Some(worker) = workers.get() else {
                         break 'listener Err(E::NoAvailableWorkers);
                     };
+                    if let Err(err) = context.consider(&next) {
+                        break 'listener Err(err);
+                    }
+                    if !context.filtered(&next) {
+                        continue;
+                    }
+                    queue += 1;
                     worker.delegate(next);
                     continue;
                 }
                 Action::Processed(processed) => {
                     queue -= 1;
                     match processed {
-                        Ok(mut paths) => {
-                            collected.append(&mut paths);
+                        Ok(paths) => {
+                            collected.append(
+                                &mut paths
+                                    .into_iter()
+                                    .filter(|p| context.filtered(p))
+                                    .collect::<Vec<PathBuf>>(),
+                            );
                             if let Some(ref progress) = progress {
                                 let count = collected.len();
                                 progress.notify(JobType::Collecting, count, count);

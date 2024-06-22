@@ -1,6 +1,9 @@
+mod context;
 mod error;
 mod filter;
 mod pattern;
+
+pub use context::{ContextFile, ContextFileAccepted};
 pub use error::E;
 pub use filter::Filter;
 pub(crate) use filter::FilterAccepted;
@@ -58,6 +61,7 @@ pub struct Entry {
     pub exclude: Vec<FilterAccepted>,
     /// A list of patterns for filtering paths.
     pub patterns: Vec<PatternFilterAccepted>,
+    pub context: Vec<ContextFileAccepted>,
 }
 
 impl Entry {
@@ -143,7 +147,7 @@ impl Entry {
     ///
     /// # Returns
     ///
-    /// - `Result<&mut Self, E>`: A mutable reference to the modified `Entry` instance or an error if
+    /// - `Result<&mut Self, E>`: A modified `Entry` instance or an error if
     ///   the path is invalid.
     ///
     /// # Errors
@@ -161,6 +165,53 @@ impl Entry {
         Ok(self)
     }
 
+    /// Adds a context file (like `.gitignore`) which will be used to obtain patterns for filtering content.
+    /// Nested context files are also considered.
+    ///
+    /// # Arguments
+    ///
+    /// * `context` - A `ContextFile` name of context file.
+    ///
+    ///   * `ContextFile::Ignore` - All rules in the file will be used as ignore rules. If the path matches,
+    ///     it will be ignored. Ignore rules are used regularly. This means the rule will be applied to the
+    ///     full path: both to check folder paths and file paths.
+    ///   * `ContextFile::Ignore` - All rules in the file will be used as accept rules. If the path matches,
+    ///     it will be accepted. If this rule from the file doesn't match, the file will be ignored. Accept
+    ///     rules are used in a non-regular way. This means the rule will be applied only to file paths;
+    ///     folder path checks will be skipped.
+    ///
+    /// # Returns
+    ///
+    /// - The modified instance of the struct with the new context file added to the list.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fshasher::{Entry, Options, ContextFile};
+    /// use std::{
+    ///     env::temp_dir,
+    /// };
+    /// use uuid::Uuid;
+    ///
+    /// let mut opt = Options::new();
+    /// let mut walker = Options::new().entry(
+    ///     Entry::new()
+    ///         .entry(temp_dir())
+    ///         .unwrap()
+    ///         .context(
+    ///             ContextFile::Ignore(".gitignore")
+    ///         )
+    ///     ).unwrap().walker().unwrap();
+    /// let _ = walker.collect().unwrap();
+    /// ```
+    pub fn context<T: AsRef<str>>(mut self, context: ContextFile<T>) -> Self {
+        let accepted: ContextFileAccepted = context.into();
+        if !self.context.contains(&accepted) {
+            self.context.push(accepted);
+        }
+        self
+    }
+
     /// Adds an include filter to the entry.
     ///
     /// # Parameters
@@ -169,7 +220,7 @@ impl Entry {
     ///
     /// # Returns
     ///
-    /// - `Result<&mut Self, E>`: A mutable reference to the modified `Entry` instance or an error if the filter is invalid.
+    /// - `Result<&mut Self, E>`: A modified `Entry` instance or an error if the filter is invalid.
     pub fn include<T: AsRef<str>>(mut self, filter: Filter<T>) -> Result<Self, E> {
         let accepted: FilterAccepted = filter.try_into()?;
         if !self.include.contains(&accepted) && !self.exclude.contains(&accepted) {
@@ -186,7 +237,7 @@ impl Entry {
     ///
     /// # Returns
     ///
-    /// - `Result<&mut Self, E>`: A mutable reference to the modified `Entry` instance or an error if the filter is invalid.
+    /// - `Result<&mut Self, E>`: A modified `Entry` instance or an error if the filter is invalid.
     pub fn exclude<T: AsRef<str>>(mut self, filter: Filter<T>) -> Result<Self, E> {
         let accepted: FilterAccepted = filter.try_into()?;
         if !self.include.contains(&accepted) && !self.exclude.contains(&accepted) {
@@ -203,7 +254,7 @@ impl Entry {
     ///
     /// # Returns
     ///
-    /// - `Result<&mut Self, E>`: A mutable reference to the modified `Entry` instance or an error if the pattern is invalid.
+    /// - `Result<&mut Self, E>`: A modified `Entry` instance or an error if the pattern is invalid.
     pub fn pattern<T: AsRef<str>>(mut self, pattern: PatternFilter<T>) -> Result<Self, E> {
         let accepted: PatternFilterAccepted = pattern.try_into()?;
         if !self.patterns.contains(&accepted) {

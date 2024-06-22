@@ -2,7 +2,12 @@ use crate::{
     collector::Tolerance, entry::Entry, test::usecase::*, Hasher, Options, Reader, ReadingStrategy,
     E,
 };
-use std::path::PathBuf;
+use std::{
+    fs::OpenOptions,
+    io,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 pub fn paths_to_cmp_string(paths: &[PathBuf]) -> String {
     paths
@@ -78,5 +83,16 @@ where
     assert_eq!(walker_a.count(), usecase.files.len());
     assert_eq!(walker_b.count(), usecase.files.len());
     assert_ne!(hash_a, hash_b);
+    Ok(())
+}
+
+pub fn create_text_file<P: AsRef<Path>, S: AsRef<str>>(filename: P, content: S) -> io::Result<()> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(filename)?;
+    file.write_all(content.as_ref().as_bytes())?;
+    file.flush()?;
     Ok(())
 }

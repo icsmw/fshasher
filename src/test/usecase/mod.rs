@@ -36,6 +36,11 @@ pub struct UseCase {
 }
 
 impl UseCase {
+    /// Calculates expected number of folders
+    pub fn expectation(folders: usize, files: usize, deep: usize) -> usize {
+        files * ((folders.pow(deep as u32 + 1) - 1) / (folders - 1)) - files
+    }
+
     pub fn unnamed(folders: u16, files: u16, deep: u8, exts: &[&str]) -> Result<Self, io::Error> {
         Self::gen(
             Strategy::Number(folders),

@@ -1,5 +1,4 @@
 pub use super::E;
-use core::panic;
 use glob::Pattern;
 use std::path::Path;
 
@@ -101,3 +100,4 @@ impl PatternFilterAccepted {
         }
     }
 }
+// !*.ts

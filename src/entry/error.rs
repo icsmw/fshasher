@@ -1,5 +1,5 @@
 use glob::PatternError;
-use std::path::PathBuf;
+use std::{io, path::PathBuf};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -14,6 +14,8 @@ pub enum E {
     AbsolutePathAsFilter(String),
     #[error("Path {0} cannot be used as cwd because it isn't folder")]
     OnlyFolderAsCwd(PathBuf),
+    #[error("IO Error: {0}")]
+    IO(#[from] io::Error),
 }
 
 impl From<(String, PatternError)> for E {
