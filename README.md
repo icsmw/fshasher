@@ -18,6 +18,7 @@
 -   [General](#general)
 -   [Filtering](#filtering)
 -   [Patterns](#patterns)
+-   [Rules in Files](#rules-in-files)
 -   [Reading Strategy](#reading-strategy)
 
 3. [Hasher & Reader](#hasher-and-reader)
