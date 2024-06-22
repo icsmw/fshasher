@@ -175,7 +175,7 @@ impl Entry {
     ///   * `ContextFile::Ignore` - All rules in the file will be used as ignore rules. If the path matches,
     ///     it will be ignored. Ignore rules are used regularly. This means the rule will be applied to the
     ///     full path: both to check folder paths and file paths.
-    ///   * `ContextFile::Ignore` - All rules in the file will be used as accept rules. If the path matches,
+    ///   * `ContextFile::Accept` - All rules in the file will be used as accept rules. If the path matches,
     ///     it will be accepted. If this rule from the file doesn't match, the file will be ignored. Accept
     ///     rules are used in a non-regular way. This means the rule will be applied only to file paths;
     ///     folder path checks will be skipped.
@@ -191,7 +191,6 @@ impl Entry {
     /// use std::{
     ///     env::temp_dir,
     /// };
-    /// use uuid::Uuid;
     ///
     /// let mut opt = Options::new();
     /// let mut walker = Options::new().entry(

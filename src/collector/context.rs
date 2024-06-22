@@ -27,6 +27,14 @@ impl ContextPatterns {
         }
     }
 
+    pub fn merge(&mut self, pattern: &ContextPatterns) {
+        for (pattern, ng) in pattern.ignore.iter() {
+            if !self.ignore.iter().any(|(p, _)| p == pattern) {
+                self.ignore.push((pattern.clone(), *ng))
+            }
+        }
+    }
+
     pub fn filtered(&self, path: &Path) -> bool {
         if self.ignore.is_empty() && self.accept.is_empty() {
             return true;
@@ -96,13 +104,15 @@ impl Context {
             }
         }
         if !context_patterns.ignore.is_empty() || !context_patterns.accept.is_empty() {
+            for rel in self.relevant_to(parent) {
+                context_patterns.merge(rel);
+            }
             self.patterns.insert(parent.clone(), context_patterns);
         }
         Ok(())
     }
 
     pub fn filtered(&self, path: &Path) -> bool {
-        // TODO: consider nested conditions
         if let Some(cx) = self.relevant_to(path).first() {
             cx.filtered(path)
         } else {

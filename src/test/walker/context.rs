@@ -1,6 +1,6 @@
 use crate::{
     test::{usecase::*, utils::create_text_file},
-    Entry, Options, E,
+    ContextFile, Entry, Options, E,
 };
 use uuid::Uuid;
 
@@ -32,7 +32,7 @@ fn ingore_folders(count: u8, files: u16, deep: u8) -> Result<(), E> {
     create_text_file(usecase.root.join(".ignore"), &list)?;
     let entry = Entry::new()
         .entry(&usecase.root)?
-        .context(crate::entry::ContextFile::Ignore(".ignore"));
+        .context(ContextFile::Ignore(".ignore"));
     let mut walker = Options::new().entry(entry)?.walker()?;
     walker.collect()?;
     assert_eq!(
@@ -88,7 +88,7 @@ fn ingore_folders_with_files(count: u8, files: usize, deep: u8) -> Result<(), E>
     create_text_file(usecase.root.join(".ignore"), &list)?;
     let entry = Entry::new()
         .entry(&usecase.root)?
-        .context(crate::entry::ContextFile::Ignore(".ignore"));
+        .context(ContextFile::Ignore(".ignore"));
     let mut walker = Options::new().entry(entry)?.walker()?;
     walker.collect()?;
     assert_eq!(
@@ -136,7 +136,7 @@ fn ingore_folders_negative(count: u8, files: u16, deep: u8) -> Result<(), E> {
     create_text_file(usecase.root.join(".ignore"), &list)?;
     let entry = Entry::new()
         .entry(&usecase.root)?
-        .context(crate::entry::ContextFile::Ignore(".ignore"));
+        .context(ContextFile::Ignore(".ignore"));
     let mut walker = Options::new().entry(entry)?.walker()?;
     walker.collect()?;
     assert_eq!(
@@ -183,7 +183,7 @@ fn ingore_folders_with_files_negative(count: u8, files: usize, deep: u8) -> Resu
     create_text_file(usecase.root.join(".ignore"), &list)?;
     let entry = Entry::new()
         .entry(&usecase.root)?
-        .context(crate::entry::ContextFile::Ignore(".ignore"));
+        .context(ContextFile::Ignore(".ignore"));
     let mut walker = Options::new().entry(entry)?.walker()?;
     walker.collect()?;
     assert_eq!(
@@ -210,7 +210,7 @@ fn ingore_folders_with_files_negative(count: u8, files: usize, deep: u8) -> Resu
     create_text_file(usecase.root.join(".ignore"), &list)?;
     let entry = Entry::new()
         .entry(&usecase.root)?
-        .context(crate::entry::ContextFile::Ignore(".ignore"));
+        .context(ContextFile::Ignore(".ignore"));
     let mut walker = Options::new().entry(entry)?.walker()?;
     walker.collect()?;
     assert_eq!(
@@ -254,7 +254,7 @@ fn accept_files(count: u8, files: usize, deep: u8) -> Result<(), E> {
     create_text_file(usecase.root.join(".accept"), &list)?;
     let entry = Entry::new()
         .entry(&usecase.root)?
-        .context(crate::entry::ContextFile::Accept(".accept"));
+        .context(ContextFile::Accept(".accept"));
     let mut walker = Options::new().entry(entry)?.walker()?;
     walker.collect()?;
     assert_eq!(
@@ -323,7 +323,7 @@ fn no_matches() -> Result<(), E> {
     create_text_file(usecase.root.join(".ignore"), "**/fake\n**/fake_2")?;
     let entry = Entry::new()
         .entry(&usecase.root)?
-        .context(crate::entry::ContextFile::Ignore(".ignore"));
+        .context(ContextFile::Ignore(".ignore"));
     let mut walker = Options::new().entry(entry)?.walker()?;
     walker.collect()?;
     assert_eq!(
@@ -350,7 +350,7 @@ fn empty_file() -> Result<(), E> {
     create_text_file(usecase.root.join(".ignore"), "")?;
     let entry = Entry::new()
         .entry(&usecase.root)?
-        .context(crate::entry::ContextFile::Ignore(".ignore"));
+        .context(ContextFile::Ignore(".ignore"));
     let mut walker = Options::new().entry(entry)?.walker()?;
     walker.collect()?;
     assert_eq!(
@@ -380,7 +380,7 @@ fn ignore_root() -> Result<(), E> {
     )?;
     let entry = Entry::new()
         .entry(&usecase.root)?
-        .context(crate::entry::ContextFile::Ignore(".ignore"));
+        .context(ContextFile::Ignore(".ignore"));
     let mut walker = Options::new().entry(entry)?.walker()?;
     walker.collect()?;
     assert_eq!(walker.count(), 0);
