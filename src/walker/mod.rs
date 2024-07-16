@@ -2,6 +2,8 @@ mod error;
 pub(crate) mod options;
 mod pool;
 mod progress;
+#[cfg(feature = "tracking")]
+mod tracking;
 mod worker;
 
 use crate::{
@@ -21,6 +23,8 @@ use std::{
     thread::{self, JoinHandle},
     time::Instant,
 };
+#[cfg(feature = "tracking")]
+pub use tracking::Tracking;
 pub use worker::Worker;
 
 /// The default minimum number of paths that will be given to a hash worker to calculate hashes.

@@ -14,4 +14,6 @@ pub use collector::{collect, Tolerance};
 pub use entry::{ContextFile, Entry, Filter};
 pub use hasher::Hasher;
 pub use reader::Reader;
+#[cfg(feature = "tracking")]
+pub use walker::Tracking;
 pub use walker::{JobType, Options, Progress, ReadingStrategy, Tick, Walker, E};

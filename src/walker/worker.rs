@@ -66,20 +66,18 @@ impl Worker {
         let available_inner = available.clone();
         let handle = thread::spawn(move || {
             let response = |action: Action| {
-                tx_queue.send(action).map_err(|err| {
+                tx_queue.send(action).inspect_err(|_err| 
                     error!(
                         "Hasher worker cannot communicate with pool. Channel error. Worker will be closed"
-                    );
-                    err
-                })
+                    )
+                )
             };
             let report = |action: Action| {
-                tx_queue.send(action).map_err(|err| {
+                tx_queue.send(action).inspect_err(|_err| 
                     error!(
                         "Hasher worker cannot communicate with pool. Channel error. Worker will be closed"
-                    );
-                    err
-                })
+                    )
+                )
             };
             'outer: while let Ok(task) = rx_task.recv() {
                 let jobs = match task {

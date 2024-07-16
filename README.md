@@ -27,7 +27,10 @@
 -   [Hashers as Features](#hashers-as-features)
 -   [Extending](#extending)
 
-4. [Behaviour, Errors, Logs](#behaviour-errors-logs)
+5. [Other](#other)
+-   [Tracking](#tracking-changes)
+
+6. [Behaviour, Errors, Logs](#behaviour-errors-logs)
 
 -   [Error Handling](#error-handling)
 -   [Why Errors Can Be Ignored?](#why-errors-can-be-ignored)
@@ -49,6 +52,7 @@
 - `fshasher` performs expensive and continuous operations like hashing and allows for aborting/canceling collecting and hashing operations.
 - `fshasher` includes an embedded channel to share the progress of collecting files and hashing.
 - `fshasher` supports different levels of error tolerance, enabling the safe skipping of some files (e.g., due to permission issues) while still obtaining the hash of the remaining files.
+- `fshasher` with the "tracking" feature saves information about recent checks and detects changes with each subsequent calculation.
 
 ## Where can it be useful?
 
@@ -86,6 +90,7 @@ To configure `fshasher`, use the `Options` struct. It provides several useful me
 - `entry(Entry)` - Adds a destination folder to be included in hashing; includes the folder with filtering.
 - `include(Filter)` - Adds a global positive filter for all entries.
 - `exclude(Filter)` - Adds a global negative filter for all entries.
+- `storage(AsRef<Path>)` - Available only with the "tracking" feature. Sets up a path to store data about recently calculated hashes.
 
 ## Filtering
 
@@ -282,6 +287,43 @@ Here are a couple of examples:
 
 - [Custom Reader](examples/custom_reader)
 - [Custom Hasher](examples/custom_hasher)
+
+# Other
+
+## Tracking Changes
+
+With the "tracking" feature, `fshasher` will create storage to save information about recently calculated hashes. Using the `is_same()` method, it will be possible to detect if any changes have occurred.
+
+Since the data is saved permanently on the disk, the `is_same()` method (in the `Walker` implementation) will provide accurate information between application runs.
+
+It's strongly recommended to set (using `Options`) your own path for `fshasher` to save data about recently calculated hashes. If a path isn't set, the default path `.fshasher` will be used, which might confuse users of your application.
+
+```ignore
+use fshasher::{hasher, reader, Entry, Options, Tolerance, Tracking};
+use std::env::temp_dir;
+    ///
+let mut walker = Options::new()
+    .entry(Entry::from(temp_dir()).unwrap())
+    .unwrap()
+    .tolerance(Tolerance::LogErrors)
+    .walker()
+    .unwrap();
+// false - because never checked before
+println!(
+    "First check: {}",
+    walker
+        .is_same::<hasher::blake::Blake, reader::buffering::Buffering>()
+        .unwrap()
+);
+// true - because checked before
+println!(
+    "Second check: {}",
+    walker
+        .is_same::<hasher::blake::Blake, reader::buffering::Buffering>()
+        .unwrap()
+);
+```
+
 
 # Behaviour, Errors, Logs
 

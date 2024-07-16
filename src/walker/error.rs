@@ -63,6 +63,9 @@ pub enum E {
     InvalidRangesForScenarioStrategy(u64),
     #[error("Nested ReadingStrategy::Scenario isn't allowed")]
     NestedScenarioStrategy,
+    #[cfg(feature = "tracking")]
+    #[error("Storage error: {0}")]
+    Storage(bstorage::E),
 }
 
 impl E {
@@ -111,5 +114,12 @@ impl<T> From<PoisonError<T>> for E {
 impl From<(PathBuf, io::Error)> for E {
     fn from(err: (PathBuf, io::Error)) -> Self {
         E::IOError(err.0, err.1)
+    }
+}
+
+#[cfg(feature = "tracking")]
+impl From<bstorage::E> for E {
+    fn from(err: bstorage::E) -> Self {
+        E::Storage(err)
     }
 }

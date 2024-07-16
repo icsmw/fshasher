@@ -1,3 +1,5 @@
+#[cfg(feature = "tracking")]
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 /// `ContextFile` is used to define a rule's file, similar to `.gitignore`.
@@ -53,6 +55,20 @@ pub enum ContextFileAccepted {
     Ignore(String),
     /// Represents an accept rule.
     Accept(String),
+}
+
+#[cfg(feature = "tracking")]
+impl fmt::Display for ContextFileAccepted {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Ignore(s) => s.as_str(),
+                Self::Accept(s) => s.as_str(),
+            }
+        )
+    }
 }
 
 impl ContextFileAccepted {

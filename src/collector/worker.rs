@@ -56,11 +56,10 @@ impl Worker {
         let queue_inner = queue.clone();
         let handle = thread::spawn(move || {
             let send = |action: Action| {
-                tx_queue.send(action).map_err(|err| {
+                tx_queue.send(action).inspect_err(|_err| {
                     error!(
                         "Worker cannot communicate with pool. Channel error. Worker will be closed"
-                    );
-                    err
+                    )
                 })
             };
             let response = |action: Action| {

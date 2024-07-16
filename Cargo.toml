@@ -1,6 +1,6 @@
 [package]
 name = "fshasher"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["d.astafyev@outlook.com"]
 description = "Scan the destination folder and make a hash of all files to get the current state of the directory"
@@ -21,9 +21,13 @@ log = "0.4"
 memmap2 = "0.9"
 thiserror = "1.0"
 sha2 = { version = "0.10", optional = true }
+serde = { version = "1.0", optional = true, features = ["derive"] }
+bstorage = { version = "0.2", optional = true }
+dirs = { version = "5.0.1", optional = true }
 
 [features]
 use_sha2 = ["sha2"]
+tracking = ["bstorage", "serde/derive", "dirs"]
 
 [dev-dependencies]
 rand = "0.8"

@@ -9,6 +9,8 @@ pub use filter::Filter;
 pub(crate) use filter::FilterAccepted;
 pub use pattern::PatternFilter;
 pub(crate) use pattern::PatternFilterAccepted;
+#[cfg(feature = "tracking")]
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 /// Represents an entry with filtering options for file and directory paths. `Entry` provides a powerful
@@ -62,6 +64,37 @@ pub struct Entry {
     /// A list of patterns for filtering paths.
     pub patterns: Vec<PatternFilterAccepted>,
     pub context: Vec<ContextFileAccepted>,
+}
+
+#[cfg(feature = "tracking")]
+impl fmt::Display for Entry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{};({});({});({});({});",
+            self.entry.display(),
+            self.include
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<String>>()
+                .join(";"),
+            self.exclude
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<String>>()
+                .join(";"),
+            self.patterns
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<String>>()
+                .join(";"),
+            self.context
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<String>>()
+                .join(";")
+        )
+    }
 }
 
 impl Entry {
@@ -284,13 +317,9 @@ impl Entry {
         if self.include.is_empty() {
             true
         } else {
-            self.include.iter().any(|filter| {
-                if let Some(v) = filter.filtered(&path) {
-                    v
-                } else {
-                    true
-                }
-            })
+            self.include
+                .iter()
+                .any(|filter| filter.filtered(&path).unwrap_or(true))
         }
     }
 }

@@ -1,4 +1,4 @@
-use std::thread;
+use std::{env::temp_dir, thread};
 
 use crate::{
     collector::Tolerance, entry::Entry, hasher, reader, test::usecase::*, Options, ReadingStrategy,
@@ -65,6 +65,7 @@ fn bad_options_no_threads() -> Result<(), E> {
         progress: None,
         reading_strategy: ReadingStrategy::Buffer,
         global: Entry::new(),
+        storage: temp_dir(),
     };
     let mut walker = opt.walker()?;
     assert!(walker.collect().is_err());
@@ -86,6 +87,7 @@ fn bad_options_too_many_threads() -> Result<(), E> {
         progress: None,
         reading_strategy: ReadingStrategy::Buffer,
         global: Entry::new(),
+        storage: temp_dir(),
     };
     let mut walker = opt.walker()?;
     assert!(walker.collect().is_err());

@@ -1,5 +1,7 @@
 pub use super::E;
 use glob::Pattern;
+#[cfg(feature = "tracking")]
+use std::fmt;
 use std::path::Path;
 
 /// With `Filter`, a glob pattern can be applied to a file's name or a folder's name only,
@@ -57,6 +59,21 @@ pub enum FilterAccepted {
     Files(Pattern),
     /// A compiled glob pattern applied to the full path.
     Common(Pattern),
+}
+
+#[cfg(feature = "tracking")]
+impl fmt::Display for FilterAccepted {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Folders(p) => p.as_str(),
+                Self::Files(p) => p.as_str(),
+                Self::Common(p) => p.as_str(),
+            }
+        )
+    }
 }
 
 impl FilterAccepted {

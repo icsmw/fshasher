@@ -1,5 +1,9 @@
 use super::{Entry, Filter, Walker, E};
 use crate::collector::Tolerance;
+#[cfg(feature = "tracking")]
+use crate::walker::tracking::get_default_path;
+#[cfg(feature = "tracking")]
+use std::path::PathBuf;
 use std::{ops::Range, path::Path, thread};
 
 pub(crate) const MIN_THREADS_COUNT: usize = 1;
@@ -47,6 +51,10 @@ pub struct Options {
 
     /// Strategy for reading files.
     pub reading_strategy: ReadingStrategy,
+
+    /// A path to store states of checks. Used with "tracking" feature
+    #[cfg(feature = "tracking")]
+    pub storage: PathBuf,
 }
 
 impl Options {
@@ -63,6 +71,8 @@ impl Options {
             progress: None,
             threads: None,
             reading_strategy: ReadingStrategy::default(),
+            #[cfg(feature = "tracking")]
+            storage: get_default_path(),
         }
     }
 
@@ -83,6 +93,8 @@ impl Options {
             progress: None,
             threads: None,
             reading_strategy: ReadingStrategy::default(),
+            #[cfg(feature = "tracking")]
+            storage: get_default_path(),
         })
     }
 
@@ -94,7 +106,7 @@ impl Options {
     ///
     /// # Returns
     ///
-    /// - `Result<&mut Self, E>`: The modified `Options` instance or an error if the strategy is invalid.
+    /// - `Result<Self, E>`: An instance of `Options` an error if the strategy is invalid.
     pub fn reading_strategy(mut self, reading_strategy: ReadingStrategy) -> Result<Self, E> {
         if let ReadingStrategy::Scenario(scenario) = &reading_strategy {
             let mut from = 0;
@@ -120,7 +132,7 @@ impl Options {
     ///
     /// # Returns
     ///
-    /// - A mutable reference to the modified `Options` instance.
+    /// - `Result<Self, E>`: An instance of `Options` or an error.
     pub fn threads(mut self, threads: usize) -> Result<Self, E> {
         if threads < MIN_THREADS_COUNT {
             return Err(E::InvalidNumberOfThreads);
@@ -142,7 +154,7 @@ impl Options {
     ///
     /// # Returns
     ///
-    /// - A mutable reference to the modified `Options` instance.
+    /// - An `Options` instance.
     pub fn progress(mut self, capacity: usize) -> Self {
         self.progress = Some(capacity);
         self
@@ -157,7 +169,7 @@ impl Options {
     ///
     /// # Returns
     ///
-    /// - A mutable reference to the modified `Options` instance.
+    /// - An `Options` instance.
     pub fn tolerance(mut self, tolerance: Tolerance) -> Self {
         self.tolerance = tolerance;
         self
@@ -171,7 +183,7 @@ impl Options {
     ///
     /// # Returns
     ///
-    /// - `Result<&mut Self, E>`: A mutable reference to the modified `Options` instance or an error if the path is invalid.
+    /// - `Result<Self, E>`: An instance of `Options` or an error if the path is invalid.
     pub fn path<P: AsRef<Path>>(mut self, path: P) -> Result<Self, E> {
         self.entries.push(Entry::from(path)?);
         Ok(self)
@@ -185,7 +197,7 @@ impl Options {
     ///
     /// # Returns
     ///
-    /// - `Result<&mut Self, E>`: A mutable reference to the modified `Options` instance or an error if the entry is invalid.
+    /// - `Result<Self, E>`: An instance of `Options` or an error if the entry is invalid.
     pub fn entry(mut self, entry: Entry) -> Result<Self, E> {
         if !entry.entry.is_absolute() {
             return Err(E::RelativePathAsEntry(entry.entry));
@@ -202,7 +214,7 @@ impl Options {
     ///
     /// # Returns
     ///
-    /// - `Result<&mut Self, E>`: A mutable reference to the modified `Options` instance or an error if the filter is invalid.
+    /// - `Result<Self, E>`: An instance of `Options` or an error if the filter is invalid.
     pub fn include<T: AsRef<str>>(mut self, filter: Filter<T>) -> Result<Self, E> {
         self.global = self.global.include(filter)?;
         Ok(self)
@@ -216,12 +228,54 @@ impl Options {
     ///
     /// # Returns
     ///
-    /// - `Result<&mut Self, E>`: A mutable reference to the modified `Options` instance or an error if the filter is invalid.
+    /// - `Result<Self, E>`: An instance of `Options` or an error if the filter is invalid.
     pub fn exclude<T: AsRef<str>>(mut self, filter: Filter<T>) -> Result<Self, E> {
         self.global = self.global.exclude(filter)?;
         Ok(self)
     }
 
+    /// Sets the path to the storage for saving hashes for the "tracking" feature. `fshasher` will use this storage to save hashes and later compare
+    /// them with new hashes to determine if changes have occurred.
+    ///
+    /// # Parameters
+    ///
+    /// - `path`: The path to the storage folder. If it doesn't exist, it will be created.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<Self, E>`: An instance of `Options` or an error if failed to create the storage folder.
+    #[cfg(feature = "tracking")]
+    pub fn storage<P: AsRef<Path>>(mut self, path: P) -> Result<Self, E> {
+        use crate::walker::tracking::get_storage_name;
+        use std::fs::create_dir_all;
+
+        let path = path.as_ref().to_path_buf().join(get_storage_name());
+        if !path.exists() {
+            create_dir_all(&path)?;
+        }
+        self.storage = path;
+        Ok(self)
+    }
+
+    /// Returns own hash based on entries
+    ///
+    /// # Returns
+    ///
+    /// - `String` - hash calculated based on entries
+    #[cfg(feature = "tracking")]
+    pub fn hash(&self) -> Vec<u8> {
+        format!(
+            "{}:{}",
+            self.entries
+                .iter()
+                .map(|en| en.to_string())
+                .collect::<Vec<String>>()
+                .join(";"),
+            self.global
+        )
+        .as_bytes()
+        .to_vec()
+    }
     /// Creates a `Walker` with the specified hasher and reader.
     ///
     /// # Parameters

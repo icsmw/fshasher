@@ -1,7 +1,8 @@
 pub use super::E;
 use glob::Pattern;
+#[cfg(feature = "tracking")]
+use std::fmt;
 use std::path::Path;
-
 const MAX_DEPTH: usize = 1;
 
 /// Allows applying a glob pattern in a regular way. With `PatternFilter`, a glob pattern will be applied to
@@ -55,6 +56,25 @@ pub enum PatternFilterAccepted {
     Accept(Pattern),
     /// A combination of multiple `PatternFilterAccepted` patterns.
     Cmb(Vec<PatternFilterAccepted>),
+}
+
+#[cfg(feature = "tracking")]
+impl fmt::Display for PatternFilterAccepted {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Ignore(p) => p.as_str().to_owned(),
+                Self::Accept(p) => p.as_str().to_owned(),
+                Self::Cmb(p) => p
+                    .iter()
+                    .map(|p| p.to_string())
+                    .collect::<Vec<String>>()
+                    .join(";"),
+            }
+        )
+    }
 }
 
 impl PatternFilterAccepted {
