@@ -1,3 +1,8 @@
+# 0.3.1
+
+## Fixes
+- Make `PatternFilter` public
+
 # 0.3.0
 
 ## Features

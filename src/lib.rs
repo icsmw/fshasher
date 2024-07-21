@@ -11,7 +11,7 @@ pub mod walker;
 
 pub use breaker::Breaker;
 pub use collector::{collect, Tolerance};
-pub use entry::{ContextFile, Entry, Filter};
+pub use entry::{ContextFile, Entry, Filter, PatternFilter};
 pub use hasher::Hasher;
 pub use reader::Reader;
 #[cfg(feature = "tracking")]
